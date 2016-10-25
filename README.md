@@ -1,28 +1,32 @@
 # Firmware Analysis Toolkit 
 
-FAT is a toolkit built in order to help security researchers analyze and identify vulnerabilities in IoT and embedded device firmware. This is built in order to use for the "*[Offensive IoT Exploitation](http://offensiveiotexploitation.com/)*" training. 
+FAT is a toolkit built in order to help security researchers analyze and identify vulnerabilities in IoT and embedded device firmware. This is built in order to use for the "*[Offensive IoT Exploitation](http://offensiveiotexploitation.com/)*" training conducted by [Attify](https://attify.com). 
 
 Firmware Analysis Toolkit is build on top of the following existing tools and projects : 
 
 1. [Firmadyne](https://github.com/firmadyne/firmadyne)
-2. Binwalk 
-3. Firmware-Mod-Kit
+2. [Binwalk](https://github.com/devttys0/binwalk) 
+3. [Firmware-Mod-Kit](https://github.com/mirror/firmware-mod-kit)
 4. [MITMproxy](https://mitmproxy.org/) 
 5. [Firmwalker](https://github.com/craigz28/firmwalker) 
 
 ## Setup instructions 
 
+If you are a training student and setting this as a pre-requirement for the training, it is recommended to install the tools in the /root/tools folder, and individual tools in there. 
+
 ### Install Binwalk 
 
 ```
 git clone https://github.com/devttys0/binwalk.git
-
 cd binwalk
 sudo ./deps.sh
 sudo python ./setup.py install
 sudo apt-get install python-lzma  :: (for Python 2.x) 
 sudo -H pip install git+https://github.com/ahupp/python-magic
 ```
+
+Note: Alternatively, you could also do a `sudo apt-get install binwalk`
+
 
 ### Setting up firmadyne 
 
@@ -33,6 +37,14 @@ sudo -H pip install git+https://github.com/ahupp/python-magic
 `cd ./firmadyne; ./download.sh`
 
 Edit `firmadyne.config` and make the `FIRMWARE_DIR` point to the current location of Firmadyne folder. 
+
+### Setting up Firmware-mod-Kit 
+
+```
+sudo apt-get install git build-essential zlib1g-dev liblzma-dev python-magic
+git clone https://github.com/brianpow/firmware-mod-kit
+```
+Modify the file `shared-ng.inc` to change the value of variable `BINWALK` to the value of `/usr/local/bin/binwalk` (if that is where your binwalk is installed). You can find out the installed location of binwalk by doing `which binwalk`. 
 
 ### Setting up MITMProxy 
 
