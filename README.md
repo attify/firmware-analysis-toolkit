@@ -46,6 +46,18 @@ Note: Alternatively, you could also do a `sudo apt-get install binwalk`
 
 Edit `firmadyne.config` and make the `FIRMWARE_DIR` point to the current location of Firmadyne folder. 
 
+### Setting up FAT
+
+```
+git clone https://github.com/attify/firmware-analysis-toolkit
+mv firmware-analysis-toolkit/fat.py .
+mv firmware-analysis-toolkit/reset.sh .
+chmod +x fat.py 
+chmod +x reset.sh
+vi fat.py
+```
+Here, edit the [line number 9](https://github.com/attify/firmware-analysis-toolkit/blob/master/fat.py#L9) which is `firmadyne_path = '/root/tools/firmadyne'` to the correct path in your system.
+
 ### Setting up Firmware-mod-Kit 
 
 ```
