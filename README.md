@@ -64,11 +64,14 @@ Here, edit the [line number 9](https://github.com/attify/firmware-analysis-toolk
 sudo apt-get install git build-essential zlib1g-dev liblzma-dev python-magic
 git clone https://github.com/brianpow/firmware-mod-kit.git
 ```
-Modify the file `shared-ng.inc` to change the value of variable `BINWALK` to the value of `/usr/local/bin/binwalk` (if that is where your binwalk is installed). You can find out the installed location of binwalk by doing `which binwalk`. 
+
+Find the location of binwalk using `which binwalk` . Modify the file `shared-ng.inc` to change the value of variable `BINWALK` to the value of `/usr/local/bin/binwalk` (if that is where your binwalk is installed). . 
 
 ### Setting up MITMProxy 
 
 `pip install mitmproxy` 
+or 
+`apt-get install mitmproxy` 
 
 ### Setting up Firmwalker 
 
