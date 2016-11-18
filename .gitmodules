@@ -1,3 +1,9 @@
 [submodule "binwalk"]
 	path = binwalk
 	url = https://github.com/devttys0/binwalk
+[submodule "firmware-mod-kit"]
+	path = firmware-mod-kit
+	url = https://github.com/brianpow/firmware-mod-kit
+[submodule "firmadyne"]
+	path = firmadyne
+	url = https://github.com/firmadyne/firmadyne
