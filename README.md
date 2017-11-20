@@ -50,17 +50,31 @@ Note: Alternatively, you could also do a `sudo apt-get install binwalk`
 
 Edit `firmadyne.config` and make the `FIRMWARE_DIR` point to the current location of Firmadyne folder. 
 
-### Setting up FAT
+### Setting up Firmware Analysis Toolkit (FAT)
 
+First install [`pexpect`](https://github.com/pexpect/pexpect).
+
+```
+pip install pexpect
+```
+Now clone the repo to your system.
 ```
 git clone https://github.com/attify/firmware-analysis-toolkit
 mv firmware-analysis-toolkit/fat.py .
-mv firmware-analysis-toolkit/reset.sh .
+mv firmware-analysis-toolkit/reset.py .
 chmod +x fat.py 
-chmod +x reset.sh
-vi fat.py
+chmod +x reset.py
 ```
-Here, edit the [line number 9](https://github.com/attify/firmware-analysis-toolkit/blob/master/fat.py#L9) which is `firmadyne_path = '/root/tools/firmadyne'` to the correct path in your system.
+
+Adjust the paths to firmadyne and binwalk in `fat.py` and `reset.py`. Additionally, provide the root password. Firmadyne requires root privileges for some of its operations. The root password is provided in the script itself to automate the process.
+
+```python
+# Configurations - change this according to your system
+firmadyne_path = "/home/ec/firmadyne"
+binwalk_path = "/usr/local/bin/binwalk"
+root_pass = "root"
+firmadyne_pass = "firmadyne"
+```
 
 ### Setting up Firmware-mod-Kit 
 
@@ -85,18 +99,58 @@ That is all the setup needed in order to run FAT.
 
 ## Running FAT 
 
-Once all the above steps have been done, go ahead and run 
+Once you have completed the above steps you can run can fat. The syntax for running fat is
 
-`python fat.py` 
 
-+ It will ask you to enter the absolute path of the firmware. Here enter the firmware path including the file name. 
+```
+$ python fat.py <firmware file>
+```
+
++ Provide the firmware filename as an argument to the script. If not provided, the script would prompt for it at runtime.
 
 + The script will then ask you to enter the brand name. Enter the brand which the firmware belongs to. This is for pure database storage and categorisational purposes. 
 
-+ It will ask for password a couple of times, enter `firmadyne` in all the steps (except for your system password, obviously!)
++ The script would display the IP addresses assigned to the created network interfaces. Note it down.
 
-+ The second last step will give you an IP address. Note it down. 
-
-+ Finally, it will say that running the firmware. Wait for a couple of seconds here, and then ping the IP which was shown in the previous step, or open in the browser. 
++ Finally, it will say that running the firmware. Hit ENTER and wait until the firmware boots up. Ping the IP which was shown in the previous step, or open in the browser. 
 
 ***Congrats! The firmware is finally emulated. The next step will be to setup the proxy in Firefox and run mitmproxy.***
+
+To remove all analyzed firmware images, run
+
+```
+$ python reset.py
+```
+### Example Run
+
+```
+$ python fat.py DIR850LB1_FW210WWb03.bin 
+
+                               __           _   
+                              / _|         | |  
+                             | |_    __ _  | |_ 
+                             |  _|  / _` | | __|
+                             | |   | (_| | | |_ 
+                             |_|    \__,_|  \__|                    
+                    
+                Welcome to the Firmware Analysis Toolkit - v0.2
+    Offensive IoT Exploitation Training  - http://offensiveiotexploitation.com
+                  By Attify - https://attify.com  | @attifyme
+    
+[?] Enter the name or absolute path of the firmware you want to analyse : DIR850LB1_FW210WWb03.bin
+[?] Enter the brand of the firmware : dlink
+[+] Now going to extract the firmware. Hold on..
+[+] Firmware : DIR850LB1_FW210WWb03.bin
+[+] Brand : dlink
+[+] Database image ID : 1
+[+] Identifying architecture
+[+] Architecture : mipseb
+[+] Storing filesystem in database
+[!] Filesystem already exists
+[+] Building QEMU disk image
+[+] Setting up the network connection, please standby
+[+] Network interfaces : [('br0', '192.168.0.1'), ('br1', '192.168.7.1')]
+[+] Running the firmware finally
+[+] command line : sudo /home/ec/firmadyne/scratch/1/run.sh
+[*] Press ENTER to run the firmware...
+```
