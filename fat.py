@@ -3,7 +3,6 @@
 import os
 import pexpect
 import sys
-import subprocess
 
 # Put this script in the firmadyne path downloadable from
 # https://github.com/firmadyne/firmadyne
