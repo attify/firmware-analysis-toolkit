@@ -50,6 +50,13 @@ Note: Alternatively, you could also do a `sudo apt-get install binwalk`
 
 Edit `firmadyne.config` and make the `FIRMWARE_DIR` point to the current location of Firmadyne folder. 
 
+### Setting up the database
+
+1. `sudo apt-get install postgresql`
+2. `sudo -u postgres createuser -P firmadyne`, with password `firmadyne`
+3. `sudo -u postgres createdb -O firmadyne firmware`
+4. `sudo -u postgres psql -d firmware < ./firmadyne/database/schema`
+
 ### Setting up Firmware Analysis Toolkit (FAT)
 
 First install [`pexpect`](https://github.com/pexpect/pexpect).
