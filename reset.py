@@ -1,6 +1,5 @@
 #!/usr/bin/env python2.7
 
-import sys
 import pexpect
 
 # Change the root password according to your system
