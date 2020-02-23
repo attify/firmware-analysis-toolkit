@@ -2,7 +2,7 @@
 
 FAT is a toolkit built in order to help security researchers analyze and identify vulnerabilities in IoT and embedded device firmware. This is built in order to use for the "*[Offensive IoT Exploitation](https://www.attify-store.com/collections/training/products/offensive-iot-exploitation)*" training conducted by [Attify](https://attify.com). 
 
-[![](https://cdn.shopify.com/s/files/1/1660/8153/products/offensive-iot-exploitation-attify-embedded-hacking-security-training-real-world-store_597_512x512.jpg)](https://www.attify-store.com/collections/training/products/offensive-iot-exploitation)
+[![](https://i.ibb.co/zP9htYK/offensive-iot-exploitation-attify-embedded-hacking.png)](https://www.attify-store.com/collections/training/products/offensive-iot-exploitation)
 
 **Note:**
 
