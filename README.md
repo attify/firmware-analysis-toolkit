@@ -84,7 +84,7 @@ $ ./fat.py DIR-601_REVB_FIRMWARE_2.01.BIN
 
 ## Additional Notes
 
-- As of now, the [ARM firmadyne kernel](https://github.com/firmadyne/kernel-v4.1) doesn't work with the latest version of Qemu (2.11.1) available on the Ubuntu 18.04 official repositiory. However, Qemu (2.5.0) on Ubuntu 16.04 does work.
+- As of now, the [ARM firmadyne kernel](https://github.com/firmadyne/kernel-v4.1) doesn't work with the latest version of Qemu (2.11.1) available on the Ubuntu 18.04 official repository. However, Qemu (2.5.0) on Ubuntu 16.04 does work.
 
 - If no network interfaces are detected, try increasing the timeout value from 60 in `scripts/inferNetwork.sh` as shown below
     ```
