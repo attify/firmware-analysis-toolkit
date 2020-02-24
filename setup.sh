@@ -1,7 +1,7 @@
 #!/bin/sh
 
 sudo apt update
-sudo apt install -y python-pip python3-pip
+sudo apt install -y python-pip python3-pip python3-pexpect unzip busybox-static fakeroot kpartx snmp uml-utilities util-linux vlan qemu-system-arm qemu-system-mips qemu-system-x86 qemu-utils
 
 echo "Installing binwalk"
 git clone --depth=1 https://github.com/devttys0/binwalk.git
@@ -13,7 +13,6 @@ sudo -H pip install git+https://github.com/sviehb/jefferson
 cd ..
 
 echo "Installing firmadyne"
-sudo apt install -y busybox-static fakeroot kpartx snmp uml-utilities util-linux vlan qemu-system-arm qemu-system-mips qemu-system-x86 qemu-utils
 git clone --recursive https://github.com/firmadyne/firmadyne.git
 cd firmadyne
 ./download.sh
@@ -30,7 +29,6 @@ sed -i 's/env python/env python3/' ./sources/extractor/extractor.py
 cd ..
 
 echo "Setting up firmware analysis toolkit"
-sudo apt install -y python3-pexpect
 chmod +x fat.py
 chmod +x reset.py
 
