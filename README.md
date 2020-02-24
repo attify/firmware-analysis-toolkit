@@ -54,7 +54,7 @@ To remove all analyzed firmware images, run
 $ ./reset.py
 ```
 
-## Example
+## Example 1
 
 ```
 $ ./fat.py DIR-601_REVB_FIRMWARE_2.01.BIN 
@@ -82,9 +82,38 @@ $ ./fat.py DIR-601_REVB_FIRMWARE_2.01.BIN
 [+] When running, press Ctrl + A X to terminate qemu
 ```
 
+## Example 2
+
+```
+$ ./fat.py DIR890A1_FW103b07.bin --qemu 2.5.0
+
+                               __           _
+                              / _|         | |
+                             | |_    __ _  | |_
+                             |  _|  / _` | | __|
+                             | |   | (_| | | |_
+                             |_|    \__,_|  \__|
+
+                Welcome to the Firmware Analysis Toolkit - v0.3
+    Offensive IoT Exploitation Training  - http://offensiveiotexploitation.com
+                  By Attify - https://attify.com  | @attifyme
+
+[+] Firmware: DIR890A1_FW103b07.bin
+[+] Extracting the firmware...
+[+] Image ID: 2
+[+] Identifying architecture...
+[+] Architecture: armel
+[+] Building QEMU disk image...
+[+] Setting up the network connection, please standby...
+[+] Network interfaces: [('br0', '192.168.0.1'), ('br1', '192.168.7.1')]
+[+] Using qemu-system-arm from /home/attify/firmware-analysis-toolkit/qemu-builds/2.5.0
+[+] All set! Press ENTER to run the firmware...
+[+] When running, press Ctrl + A X to terminate qemu
+
+```
 ## Additional Notes
 
-- As of now, the [ARM firmadyne kernel](https://github.com/firmadyne/kernel-v4.1) doesn't work with the latest version of Qemu (2.11.1) available on the Ubuntu 18.04 official repository. However, Qemu (2.5.0) on Ubuntu 16.04 does work.
+- As of now, the [ARM firmadyne kernel](https://github.com/firmadyne/kernel-v4.1) doesn't work with the latest version of Qemu (2.11.1) available on the Ubuntu 18.04 official repository. However, Qemu (2.5.0) on Ubuntu 16.04 does work. Alternatively you can also use the bundled Qemu (2.5.0) provided with firmadyne as shown in example 2.
 
 - If no network interfaces are detected, try increasing the timeout value from 60 in `scripts/inferNetwork.sh` as shown below
     ```

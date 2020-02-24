@@ -1,6 +1,6 @@
 #!/bin/sh
 
-sudo apt update 
+sudo apt update
 sudo apt install -y python-pip python3-pip
 
 echo "Installing binwalk"
@@ -15,7 +15,7 @@ cd ..
 echo "Installing firmadyne"
 sudo apt install -y busybox-static fakeroot kpartx snmp uml-utilities util-linux vlan qemu-system-arm qemu-system-mips qemu-system-x86 qemu-utils
 git clone --recursive https://github.com/firmadyne/firmadyne.git
-cd firmadyne 
+cd firmadyne
 ./download.sh
 firmadyne_dir=$(realpath .)
 
@@ -37,6 +37,10 @@ chmod +x reset.py
 # Set firmadyne_path in fat.config
 sed -i "/firmadyne_path=/c\firmadyne_path=$firmadyne_dir" fat.config
 
+cd qemu-builds
+wget -O qemu-system-static-2.5.0.zip "https://github.com/attify/firmware-analysis-toolkit/files/4244529/qemu-system-static-2.5.0.zip"
+unzip -qq qemu-system-static-2.5.0.zip && rm qemu-system-static-2.5.0.zip
+cd ..
 
 echo "====================================================="
 echo "Firmware Analysis Toolkit installed successfully!"
