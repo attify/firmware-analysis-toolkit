@@ -25,7 +25,7 @@ def show_banner():
                              |_|    \__,_|  \__|
 
                 Welcome to the Firmware Analysis Toolkit - v0.3
-    Offensive IoT Exploitation Training  - http://offensiveiotexploitation.com
+    Offensive IoT Exploitation Training http://bit.do/offensiveiotexploitation
                   By Attify - https://attify.com  | @attifyme
     """)
 
