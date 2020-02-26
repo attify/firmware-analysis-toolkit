@@ -82,6 +82,10 @@ $ ./fat.py DIR-601_REVB_FIRMWARE_2.01.BIN
 [+] When running, press Ctrl + A X to terminate qemu
 ```
 
+**Asciicast**
+
+[![asciicast](https://asciinema.org/a/5VryIC2ec1j9SEIfGQ0qAWjoH.svg)](https://asciinema.org/a/5VryIC2ec1j9SEIfGQ0qAWjoH)
+
 ## Example 2
 
 ```
