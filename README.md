@@ -67,7 +67,7 @@ $ ./fat.py DIR-601_REVB_FIRMWARE_2.01.BIN
                              |_|    \__,_|  \__|                    
                     
                 Welcome to the Firmware Analysis Toolkit - v0.3
-    Offensive IoT Exploitation Training  - http://offensiveiotexploitation.com
+    Offensive IoT Exploitation Training http://bit.do/offensiveiotexploitation
                   By Attify - https://attify.com  | @attifyme
     
 [+] Firmware: DIR-601_REVB_FIRMWARE_2.01.BIN
@@ -99,7 +99,7 @@ $ ./fat.py DIR890A1_FW103b07.bin --qemu 2.5.0
                              |_|    \__,_|  \__|
 
                 Welcome to the Firmware Analysis Toolkit - v0.3
-    Offensive IoT Exploitation Training  - http://offensiveiotexploitation.com
+    Offensive IoT Exploitation Training http://bit.do/offensiveiotexploitation
                   By Attify - https://attify.com  | @attifyme
 
 [+] Firmware: DIR890A1_FW103b07.bin
