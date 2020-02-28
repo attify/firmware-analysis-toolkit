@@ -4,7 +4,6 @@ import os
 import os.path
 import pexpect
 import sys
-import glob
 import argparse
 
 from configparser import ConfigParser
@@ -28,13 +27,6 @@ def show_banner():
     Offensive IoT Exploitation Training http://bit.do/offensiveiotexploitation
                   By Attify - https://attify.com  | @attifyme
     """)
-
-
-def clean_images():
-    print ("[+] Cleaning images directory...")
-    tar_gz_files = glob.glob(os.path.join(firmadyne_path, "images", "*.tar.gz"))
-    for f in tar_gz_files:
-        os.remove(f)
 
 
 def get_next_unused_iid():
