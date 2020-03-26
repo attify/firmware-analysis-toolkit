@@ -8,7 +8,7 @@ FAT is a toolkit built in order to help security researchers analyze and identif
 
 + As of now, it is simply a script to automate **[Firmadyne](https://github.com/firmadyne/firmadyne)** which is a tool used for firmware emulation. In case of any issues with the actual emulation, please post your issues in the [firmadyne issues](https://github.com/firmadyne/firmadyne/issues).  
 
-+ In case you are on **Kali** and are **facing issues with emulation**, it is recommended to use the AttifyOS Pre-Release VM downloadable from [here](http://tinyurl.com/attifyos), or alternatively you could do the above mentioned.  
++ In case you are facing issues, you can try [AttifyOS](https://github.com/adi0x90/attifyos) which has Firmware analysis toolkit and other tools pre-installed and ready to use.
 
 ---
 
