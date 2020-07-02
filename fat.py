@@ -79,7 +79,11 @@ def identify_arch(image_id):
     child.expect_exact(":")
     arch = child.readline().strip().decode("utf8")
     print ("[+] Architecture: " + arch)
-    child.expect_exact(pexpect.EOF)
+    try:
+        child.expect_exact(pexpect.EOF)
+    except Exception as e:
+        child.close(force=True)
+
     return arch
 
 
