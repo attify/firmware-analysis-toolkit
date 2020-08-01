@@ -1,5 +1,6 @@
 #!/bin/sh
 
+set -e
 sudo apt update
 sudo apt install -y python-pip python3-pip python3-pexpect unzip busybox-static fakeroot kpartx snmp uml-utilities util-linux vlan qemu-system-arm qemu-system-mips qemu-system-x86 qemu-utils
 
