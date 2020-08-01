@@ -124,3 +124,7 @@ $ ./fat.py DIR890A1_FW103b07.bin --qemu 2.5.0
     echo "Running firmware ${IID}: terminating after 60 secs..."
     timeout --preserve-status --signal SIGINT 60 "${SCRIPT_DIR}/run.${ARCH}.sh" "${IID}"
     ```
+
+## Known Issues
+
+- FAT does not work on Ubuntu 20.04. The main reason behind this is some dependencies of Firmadyne (especially binwalk) require Python 2. Unless this is fixed upstream, stick to Ubuntu 18.04 or lower.
