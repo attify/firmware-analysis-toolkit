@@ -29,11 +29,15 @@ def show_banner():
     """)
 
 
-def get_next_unused_iid():
-    for i in range(1, 1000):
+def get_next_unused_iid(i=1):
+    while True:
         if not os.path.isdir(os.path.join(firmadyne_path, "scratch", str(i))):
-            return str(i)
-    return ""
+            if not os.path.isfile(os.path.join(firmadyne_path, "images", str(i) + ".tar.gz")):
+                break
+            else:
+                print("[!] Skipped ID %d since image files found but no scratch folder exists." % i)
+        i += 1
+    return str(i)
 
 
 def run_extractor(firm_name):
@@ -57,13 +61,8 @@ def run_extractor(firm_name):
 
     if os.path.isfile(image_tgz):
         iid = get_next_unused_iid()
-        if iid == "" or os.path.isfile(os.path.join(os.path.dirname(image_tgz), iid + ".tar.gz")):
-            print ("[!] Too many stale images")
-            print ("[!] Please run reset.py or manually delete the contents of the scratch/ and images/ directory")
-            return ""
-
         os.rename(image_tgz, os.path.join(os.path.dirname(image_tgz), iid + ".tar.gz"))
-        print ("[+] Image ID:", iid)
+        print ("[+] Allocated image ID:", iid)
         return iid
 
     return ""
