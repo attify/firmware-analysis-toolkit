@@ -35,7 +35,7 @@ def get_next_unused_iid(i=1):
             if not os.path.isfile(os.path.join(firmadyne_path, "images", str(i) + ".tar.gz")):
                 break
             else:
-                print("[!] Skipped ID %d since image files found but no scratch folder exists." % i)
+                print("[!] Skipped ID %d since image file found but no scratch folder exists." % i)
         i += 1
     return str(i)
 
