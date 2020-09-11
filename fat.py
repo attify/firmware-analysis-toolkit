@@ -40,7 +40,7 @@ def get_next_unused_iid(i=1):
     return str(i)
 
 
-def run_extractor(firm_name):
+def run_extractor(firm_name, brand, sql):
     print ("[+] Firmware:", os.path.basename(firm_name))
     print ("[+] Extracting the firmware...")
 
@@ -51,11 +51,29 @@ def run_extractor(firm_name):
         firm_name,
         os.path.join(firmadyne_path, "images")
     ]
-
+    if brand:
+        extractor_args = ["-b", brand] + extractor_args
+    if sql:
+        extractor_args = ["-sql", sql] + extractor_args
+    
     child = pexpect.spawn(extractor_cmd, extractor_args, timeout=None)
-    child.expect_exact("Tag: ")
-    tag = child.readline().strip().decode("utf8")
-    child.expect_exact(pexpect.EOF)
+    responses = child.read().strip().decode("utf8").split("\n")
+    if responses[0].startswith(">> Database Image ID:"):
+        iid = responses[0].split(":")[1].strip()
+        print ("[+] Found image ID:", iid)
+        return iid
+    if len(responses) == 2 and responses[1].strip()=='>> Skipping: completed!':
+        print ("[!] Some leftover files found at %s, please clean up first." % os.path.join(firmadyne_path,"images"))
+        return ""
+
+    tag = None
+    for response in responses:
+        if response.startswith('>> Tag:'):
+            tag = response.split(":")[1].strip()
+            break
+    
+    if not tag:
+        return ""
 
     image_tgz = os.path.join(firmadyne_path, "images", tag + ".tar.gz")
 
@@ -143,6 +161,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("firm_path", help="The path to the firmware image", type=str)
     parser.add_argument("-q", "--qemu", metavar="qemu_path", help="The qemu version to use (must exist within qemu-builds directory). If not specified, the qemu version installed system-wide will be used", type=str)
+    parser.add_argument("-s","--sql", dest="sql", action="store", default=None, help="Hostname of SQL server")
+    parser.add_argument("-b","--brand", dest="brand", action="store", default=None, help="Brand of the firmware image")
     args = parser.parse_args()
 
     qemu_ver = args.qemu
@@ -154,7 +174,7 @@ def main():
             print ("[+] Using system qemu")
             qemu_dir = None
 
-    image_id = run_extractor(args.firm_path)
+    image_id = run_extractor(args.firm_path, args.brand, args.sql)
 
     if image_id == "":
         print ("[!] Image extraction failed")
