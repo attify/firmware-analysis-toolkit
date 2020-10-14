@@ -40,7 +40,7 @@ def get_next_unused_iid(i=1):
     return str(i)
 
 
-def run_extractor(firm_name, brand, sql):
+def run_extractor(firm_name, brand, sql, iid):
     print ("[+] Firmware:", os.path.basename(firm_name))
     print ("[+] Extracting the firmware...")
 
@@ -68,21 +68,24 @@ def run_extractor(firm_name, brand, sql):
 
     tag = None
     for response in responses:
+        print(response)
         if response.startswith('>> Tag:'):
             tag = response.split(":")[1].strip()
             break
-    
+
     if not tag:
         return ""
 
     image_tgz = os.path.join(firmadyne_path, "images", tag + ".tar.gz")
 
     if os.path.isfile(image_tgz):
-        iid = get_next_unused_iid()
-        os.rename(image_tgz, os.path.join(os.path.dirname(image_tgz), iid + ".tar.gz"))
-        print ("[+] Allocated image ID:", iid)
+        if not iid:
+            iid = get_next_unused_iid()
+            os.rename(image_tgz, os.path.join(os.path.dirname(image_tgz), iid + ".tar.gz"))
+            print ("[+] Allocated image ID:", iid)
+        else:
+            print ("[+] Image ID:", iid)
         return iid
-
     return ""
 
 
@@ -163,6 +166,7 @@ def main():
     parser.add_argument("-q", "--qemu", metavar="qemu_path", help="The qemu version to use (must exist within qemu-builds directory). If not specified, the qemu version installed system-wide will be used", type=str)
     parser.add_argument("-s","--sql", dest="sql", action="store", default=None, help="Hostname of SQL server")
     parser.add_argument("-b","--brand", dest="brand", action="store", default=None, help="Brand of the firmware image")
+    parser.add_argument("-i","--image-id", dest="iid", action="store", default=None, help="Manually assign Image ID")
     args = parser.parse_args()
 
     qemu_ver = args.qemu
@@ -174,7 +178,7 @@ def main():
             print ("[+] Using system qemu")
             qemu_dir = None
 
-    image_id = run_extractor(args.firm_path, args.brand, args.sql)
+    image_id = run_extractor(args.firm_path, args.brand, args.sql, args.iid)
 
     if image_id == "":
         print ("[!] Image extraction failed")
