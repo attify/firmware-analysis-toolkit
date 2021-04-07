@@ -7,7 +7,7 @@ sudo apt install -y python-pip python3-pip python3-pexpect unzip busybox-static 
 echo "Installing binwalk"
 git clone --depth=1 https://github.com/devttys0/binwalk.git
 cd binwalk
-sudo ./deps.sh
+sudo ./deps.sh --yes
 sudo python3 ./setup.py install
 sudo -H pip3 install git+https://github.com/ahupp/python-magic
 sudo -H pip install git+https://github.com/sviehb/jefferson
