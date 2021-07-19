@@ -5,7 +5,7 @@ sudo apt update
 sudo apt install -y python3-pip python3-pexpect unzip busybox-static fakeroot kpartx snmp uml-utilities util-linux vlan qemu-system-arm qemu-system-mips qemu-system-x86 qemu-utils
 
 echo "Installing binwalk"
-git clone --depth=1 https://github.com/devttys0/binwalk.git
+git clone --depth=1 https://github.com/ReFirmLabs/binwalk.git
 cd binwalk
 
 # Change to python3 in deps.sh to allow installation on Ubuntu 20.04 (binwalk commit 2b78673)
