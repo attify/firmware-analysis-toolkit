@@ -29,14 +29,18 @@ def show_banner():
     """)
 
 
-def get_next_unused_iid():
-    for i in range(1, 1000):
+def get_next_unused_iid(i=1):
+    while True:
         if not os.path.isdir(os.path.join(firmadyne_path, "scratch", str(i))):
-            return str(i)
-    return ""
+            if not os.path.isfile(os.path.join(firmadyne_path, "images", str(i) + ".tar.gz")):
+                break
+            else:
+                print("[!] Skipped ID %d since image file found but no scratch folder exists." % i)
+        i += 1
+    return str(i)
 
 
-def run_extractor(firm_name):
+def run_extractor(firm_name, brand, sql, iid):
     print ("[+] Firmware:", os.path.basename(firm_name))
     print ("[+] Extracting the firmware...")
 
@@ -47,25 +51,41 @@ def run_extractor(firm_name):
         firm_name,
         os.path.join(firmadyne_path, "images")
     ]
-
+    if brand:
+        extractor_args = ["-b", brand] + extractor_args
+    if sql:
+        extractor_args = ["-sql", sql] + extractor_args
+    
     child = pexpect.spawn(extractor_cmd, extractor_args, timeout=None)
-    child.expect_exact("Tag: ")
-    tag = child.readline().strip().decode("utf8")
-    child.expect_exact(pexpect.EOF)
+    responses = child.read().strip().decode("utf8").split("\n")
+    if responses[0].startswith(">> Database Image ID:"):
+        iid = responses[0].split(":")[1].strip()
+        print ("[+] Found image ID:", iid)
+        return iid
+    if len(responses) == 2 and responses[1].strip()=='>> Skipping: completed!':
+        print ("[!] Some leftover files found at %s, please clean up first." % os.path.join(firmadyne_path,"images"))
+        return ""
+
+    tag = None
+    for response in responses:
+        print(response)
+        if response.startswith('>> Tag:'):
+            tag = response.split(":")[1].strip()
+            break
+
+    if not tag:
+        return ""
 
     image_tgz = os.path.join(firmadyne_path, "images", tag + ".tar.gz")
 
     if os.path.isfile(image_tgz):
-        iid = get_next_unused_iid()
-        if iid == "" or os.path.isfile(os.path.join(os.path.dirname(image_tgz), iid + ".tar.gz")):
-            print ("[!] Too many stale images")
-            print ("[!] Please run reset.py or manually delete the contents of the scratch/ and images/ directory")
-            return ""
-
-        os.rename(image_tgz, os.path.join(os.path.dirname(image_tgz), iid + ".tar.gz"))
-        print ("[+] Image ID:", iid)
+        if not iid:
+            iid = get_next_unused_iid()
+            os.rename(image_tgz, os.path.join(os.path.dirname(image_tgz), iid + ".tar.gz"))
+            print ("[+] Allocated image ID:", iid)
+        else:
+            print ("[+] Image ID:", iid)
         return iid
-
     return ""
 
 
@@ -144,6 +164,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("firm_path", help="The path to the firmware image", type=str)
     parser.add_argument("-q", "--qemu", metavar="qemu_path", help="The qemu version to use (must exist within qemu-builds directory). If not specified, the qemu version installed system-wide will be used", type=str)
+    parser.add_argument("-s","--sql", dest="sql", action="store", default=None, help="Hostname of SQL server")
+    parser.add_argument("-b","--brand", dest="brand", action="store", default=None, help="Brand of the firmware image")
+    parser.add_argument("-i","--image-id", dest="iid", action="store", default=None, help="Manually assign Image ID")
     args = parser.parse_args()
 
     qemu_ver = args.qemu
@@ -155,7 +178,7 @@ def main():
             print ("[+] Using system qemu")
             qemu_dir = None
 
-    image_id = run_extractor(args.firm_path)
+    image_id = run_extractor(args.firm_path, args.brand, args.sql, args.iid)
 
     if image_id == "":
         print ("[!] Image extraction failed")
