@@ -42,13 +42,15 @@ def run_extractor(firm_name):
 
     extractor_cmd = os.path.join(firmadyne_path, "sources/extractor/extractor.py")
     extractor_args = [
+        "--",
+        extractor_cmd,
         "-np",
         "-nk",
         firm_name,
         os.path.join(firmadyne_path, "images")
     ]
-
-    child = pexpect.spawn(extractor_cmd, extractor_args, timeout=None)
+    child = pexpect.spawn("sudo", extractor_args, timeout=None)
+    child.sendline(sudo_pass)
     child.expect_exact("Tag: ")
     tag = child.readline().strip().decode("utf8")
     child.expect_exact(pexpect.EOF)
