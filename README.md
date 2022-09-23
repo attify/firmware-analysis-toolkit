@@ -129,3 +129,23 @@ $ ./fat.py DIR890A1_FW103b07.bin --qemu 2.5.0
 
 - ~~FAT does not work on Ubuntu 20.04. The main reason behind this is some dependencies of Firmadyne (especially binwalk) require Python 2. Unless this is fixed upstream, stick to Ubuntu 18.04 or lower.~~ 
 Ubuntu 20.04 **is now supported**. The current version of FAT patches the binwalk installation script to workaround the issue.
+
+## Building static Qemu
+
+The repository already includes a static build of qemu 2.5.0 (in releases) but if you want to build your own follow the steps below.
+
+On a clean **Ubuntu 16.04** VM run. (It's important to use 16.04, later versions have issues with static compilation).
+
+```
+sudo apt update && sudo apt build-dep qemu -y
+wget https://download.qemu.org/qemu-2.5.0.tar.bz2
+tar xf qemu-2.5.0.tar.bz2
+mkdir qemu-build
+cd qemu-2.5.0
+./configure --prefix=$(realpath ../qemu-build) --static --target-list=arm-softmmu,mips-softmmu,mipsel-softmmu --disable-smartcard --disable-libusb --disable-usb-redir
+make 
+make install
+```
+The compiled binaries can be found in `qemu-build` directory.
+
+Note: It should also be possible to compile qemu statically on an alpine system but this hasn't been tested. In general compiling on alpine is preferred to Ubuntu as the former comes with musl libc which is better at static linkage than glibc on Ubuntu.
