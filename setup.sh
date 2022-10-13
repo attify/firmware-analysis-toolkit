@@ -8,8 +8,8 @@ echo "Installing binwalk"
 git clone --depth=1 https://github.com/ReFirmLabs/binwalk.git
 cd binwalk
 
-# Temporary fix for sasquatch failing to install
-git pull origin pull/601/head
+# Temporary fix for sasquatch failing to install (From https://github.com/ReFirmLabs/binwalk/pull/601)
+sed -i 's;\$SUDO ./build.sh;wget https://github.com/devttys0/sasquatch/pull/47.patch \&\& patch -p1 < 47.patch \&\& \$SUDO ./build.sh;' deps.sh
 
 # Change to python3 in deps.sh to allow installation on Ubuntu 20.04 (binwalk commit 2b78673)
 sed -i '/REQUIRED_UTILS="wget tar python"/c\REQUIRED_UTILS="wget tar python3"' deps.sh
