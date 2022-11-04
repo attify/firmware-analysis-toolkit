@@ -132,20 +132,51 @@ Ubuntu 20.04 **is now supported**. The current version of FAT patches the binwal
 
 ## Building static Qemu
 
-The repository already includes a static build of qemu 2.5.0 (in releases) but if you want to build your own follow the steps below.
+The repository already includes a static builds of qemu 2.0.0, 2.5.0 & 3.0.0 (in releases) but if you want to build your own follow the steps below.
 
 On a clean **Ubuntu 16.04** VM run. (It's important to use 16.04, later versions have issues with static compilation).
 
+### Qemu 2.0.0
+
+```sh
+sudo apt update && sudo apt build-dep qemu -y
+wget https://download.qemu.org/qemu-2.0.0.tar.bz2
+tar xf qemu-2.0.0.tar.bz2
+mkdir qemu-2.0.0-build
+cd qemu-2.0.0
+./configure --prefix=$(realpath ../qemu-2.0.0-build) --static --target-list=arm-softmmu,mips-softmmu,mipsel-softmmu --disable-smartcard-nss --disable-spice --disable-libusb --disable-usb-redir
+make
+make install
 ```
+The compiled binaries can be found in `qemu-2.0.0-build` directory.
+
+### Qemu 2.5.0
+
+```sh
 sudo apt update && sudo apt build-dep qemu -y
 wget https://download.qemu.org/qemu-2.5.0.tar.bz2
 tar xf qemu-2.5.0.tar.bz2
-mkdir qemu-build
+mkdir qemu-2.5.0-build
 cd qemu-2.5.0
-./configure --prefix=$(realpath ../qemu-build) --static --target-list=arm-softmmu,mips-softmmu,mipsel-softmmu --disable-smartcard --disable-libusb --disable-usb-redir
+./configure --prefix=$(realpath ../qemu-2.5.0-build) --static --target-list=arm-softmmu,mips-softmmu,mipsel-softmmu --disable-smartcard --disable-libusb --disable-usb-redir
 make 
 make install
 ```
-The compiled binaries can be found in `qemu-build` directory.
+The compiled binaries can be found in `qemu-2.5.0-build` directory.
+
+### Qemu 3.0.0
+
+```sh
+sudo apt update && sudo apt build-dep qemu -y
+wget https://download.qemu.org/qemu-3.0.0.tar.bz2
+tar xf qemu-3.0.0.tar.bz2
+mkdir qemu-3.0.0-build
+cd qemu-3.0.0
+./configure --prefix=$(realpath ../qemu-3.0.0-build) --static --target-list=arm-softmmu,mips-softmmu,mipsel-softmmu --disable-smartcard --disable-libusb --disable-usb-redir
+make 
+make install
+```
+The compiled binaries can be found in `qemu-3.0.0-build` directory.
+
 
 Note: It should also be possible to compile qemu statically on an alpine system but this hasn't been tested. In general compiling on alpine is preferred to Ubuntu as the former comes with musl libc which is better at static linkage than glibc on Ubuntu.

@@ -44,8 +44,16 @@ chmod +x reset.py
 sed -i "/firmadyne_path=/c\firmadyne_path=$firmadyne_dir" fat.config
 
 cd qemu-builds
+
+wget -O qemu-system-static-2.0.0.zip "https://github.com/attify/firmware-analysis-toolkit/files/9937453/qemu-system-static-2.0.0.zip"
+unzip -qq qemu-system-static-2.0.0.zip && rm qemu-system-static-2.0.0.zip
+
 wget -O qemu-system-static-2.5.0.zip "https://github.com/attify/firmware-analysis-toolkit/files/4244529/qemu-system-static-2.5.0.zip"
 unzip -qq qemu-system-static-2.5.0.zip && rm qemu-system-static-2.5.0.zip
+
+wget -O qemu-system-static-3.0.0.tar.gz "https://github.com/attify/firmware-analysis-toolkit/files/9937487/qemu-system-static-3.0.0.tar.gz"
+tar xf qemu-system-static-3.0.0.tar.gz && rm qemu-system-static-3.0.0.tar.gz
+
 cd ..
 
 echo "====================================================="
