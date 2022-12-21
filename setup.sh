@@ -4,7 +4,7 @@ set -e
 sudo apt update
 sudo apt install -y python3-pip python3-pexpect unzip busybox-static fakeroot kpartx snmp uml-utilities util-linux vlan qemu-system-arm qemu-system-mips qemu-system-x86 qemu-utils wget tar
 
-if [ ! -x $(which lsb_release) ]
+if [ ! -x "$(which lsb_release)" ]
 then
     sudo apt install -y lsb-core
 fi
