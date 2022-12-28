@@ -179,4 +179,22 @@ make install
 The compiled binaries can be found in `qemu-3.0.0-build` directory.
 
 
+On a clean **Archlinux** VM run
+
+```
+sudo pacman -Syu  
+sudo pacman -S qemu-emulators-full  ninja base-devel git #qemu-full will install all the archs
+
+# the above will setup all the configures for archs but  just for fun here
+
+git clone --depth 1 https://github.com/qemu/QEMU
+cd qemu
+mkdir build
+cd build 
+./configure --prefix=$(realpath ../qemu-build) --static --target-list=arm-softmmu,mips-softmmu,mipsel-softmmu --disable-smartcard --disable-libusb --disable-usb-redir
+make
+sudo make install
+```
+Note: qemu-emulators-full  package provides all the archs 
+
 Note: It should also be possible to compile qemu statically on an alpine system but this hasn't been tested. In general compiling on alpine is preferred to Ubuntu as the former comes with musl libc which is better at static linkage than glibc on Ubuntu.
