@@ -19,8 +19,11 @@ sed -i 's;\$SUDO ./build.sh;wget https://github.com/devttys0/sasquatch/pull/47.p
 # Change to python3 in deps.sh to allow installation on Ubuntu 20.04 (binwalk commit 2b78673)
 sed -i '/REQUIRED_UTILS="wget tar python"/c\REQUIRED_UTILS="wget tar python3"' deps.sh
 
-# Fix for ubi_reader not able to clone
-sed -i 's;"master" https://github.com/jrspruitt/ubi_reader;"main" https://github.com/jrspruitt/ubi_reader;' deps.sh
+# Fix for ubi_reader change of branch name + switching to poetry
+wget https://github.com/ReFirmLabs/binwalk/pull/639.patch && patch -p1 < 639.patch && rm 639.patch
+
+# Required as we are not installing ubi_reader using poetry
+pip install lzallright
 
 sudo ./deps.sh --yes
 sudo python3 ./setup.py install
