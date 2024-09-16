@@ -18,6 +18,10 @@ sed -i 's;\$SUDO ./build.sh;wget https://github.com/devttys0/sasquatch/pull/47.p
 
 # Change to python3 in deps.sh to allow installation on Ubuntu 20.04 (binwalk commit 2b78673)
 sed -i '/REQUIRED_UTILS="wget tar python"/c\REQUIRED_UTILS="wget tar python3"' deps.sh
+
+# Fix for ubi_reader not able to clone
+sed -i 's;"master" https://github.com/jrspruitt/ubi_reader;"main" https://github.com/jrspruitt/ubi_reader;' deps.sh
+
 sudo ./deps.sh --yes
 sudo python3 ./setup.py install
 sudo -H pip3 install git+https://github.com/ahupp/python-magic
