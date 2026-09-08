@@ -1,0 +1,5 @@
+{
+  "id": "invariant-permission",
+  "kind": "source",
+  "patch_file": "patch.diff"
+}

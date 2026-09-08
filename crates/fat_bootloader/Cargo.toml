@@ -1,0 +1,54 @@
+[package]
+name = "fat-toolkit-bootloader"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+readme.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Bootloader profile loading and boot-plan modeling for FAT"
+publish = false
+
+[lib]
+name = "fat_bootloader"
+path = "src/lib.rs"
+
+[dependencies]
+fat-core = { version = "=2.0.0-alpha.1", path = "../fat_core", package = "fat-toolkit-core" }
+fat-extract = { version = "=2.0.0-alpha.1", path = "../fat_extract", package = "fat-toolkit-extract" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+walkdir = "2"
+
+[dev-dependencies]
+tempfile = "3"
+
+[[test]]
+name = "test_bootloader_profiles"
+path = "../../tests/integration/test_bootloader_profiles.rs"
+
+[[test]]
+name = "test_bootloader_discovery"
+path = "../../tests/integration/test_bootloader_discovery.rs"
+
+[[test]]
+name = "test_bootloader_boot_commands"
+path = "../../tests/integration/test_bootloader_boot_commands.rs"
+
+[[test]]
+name = "test_bootloader_execution_result"
+path = "../../tests/integration/test_bootloader_execution_result.rs"
+
+[[test]]
+name = "test_bootloader_image_discovery"
+path = "../../tests/integration/test_bootloader_image_discovery.rs"
+
+[[test]]
+name = "test_bootloader_compatibility"
+path = "../../tests/integration/test_bootloader_compatibility.rs"
+
+[lints]
+workspace = true

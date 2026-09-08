@@ -1,0 +1,113 @@
+# FAT Shell Taint Profile: Base
+# Always loaded by `fat taint --lang shell`. Mirrors the shape of core.yaml
+# (name / description / sources.primary / sources.secondary) but the entries
+# describe shell constructs instead of libc symbols.
+#
+# Every entry here must hold for any POSIX shell script, whatever device it
+# came from. Each one therefore names the specification or the publicly
+# documented tool that supports it. A construct that is only a source on a
+# particular platform — that platform's config helper, a mount its firmware
+# happens to expose to an attacker — is a claim about that target and belongs
+# in an overlay the operator passes with `--source-profile <file.yaml>`.
+#
+# In particular, no path prefix appears below. That a directory is world-
+# writable on a given device is a property of that device's filesystem, not of
+# the path's name, so an unqualified read stays Secondary until an operator
+# asserts otherwise. The `path-prefix` kind still exists for exactly that: an
+# overlay that declares a mount attacker-writable promotes reads under it to
+# Primary, and the finding records which mount did so.
+#
+# Sinks are NOT redefined here. They are reused verbatim from the sink profile
+# named in `sink_profiles` below (crates/fat_taint/sink_profiles/*.yaml), so
+# `fat taint --lang shell` and `fat sink-discovery --rootfs` agree on what a
+# dangerous shell construct is.
+#
+# Source `kind` values:
+#   command      — a command whose stdout is attacker-influenced. `argv`, when
+#                  present, is a prefix that the command's words must match
+#                  (e.g. `uci` + [get] matches `uci get network.lan.ipaddr`).
+#   positional   — $1..$N script arguments.
+#   environment  — inherited environment variables listed in `vars`.
+#   path-prefix  — literal paths under a mount an overlay declares attacker-
+#                  writable in `paths`. Not used by this profile.
+
+name: shell-base
+description: POSIX shell / busybox-ash sources (always loaded for --lang shell)
+target: shell
+
+# Sink families are reused from these embedded sink profiles.
+sink_profiles:
+  - shell-command-exec
+
+sources:
+  primary:
+    - name: positional-parameters
+      kind: positional
+      note: >-
+        $1..$N — POSIX Shell Command Language positional parameters, set from
+        the argv the caller (init, CGI, cron) hands the script.
+
+    - name: read
+      kind: command
+      note: >-
+        POSIX `read` utility — binds a line of standard input to a shell
+        variable, so whatever wrote that pipe or socket controls the value.
+
+    - name: environment
+      kind: environment
+      vars:
+        - QUERY_STRING
+        - REQUEST_METHOD
+        - REQUEST_URI
+        - CONTENT_LENGTH
+        - CONTENT_TYPE
+        - PATH_INFO
+        - SCRIPT_NAME
+        - REMOTE_ADDR
+        - REMOTE_HOST
+        - REMOTE_USER
+        - AUTH_TYPE
+        - SERVER_NAME
+        - HTTP_HOST
+        - HTTP_USER_AGENT
+        - HTTP_COOKIE
+        - HTTP_REFERER
+      note: >-
+        CGI meta-variables (RFC 3875), which the specification defines as
+        carrying the client's request data. REQUEST_URI is not in RFC 3875 but
+        is the de-facto server extension carrying the raw request target.
+
+  secondary:
+    - name: cat
+      kind: command
+      note: >-
+        POSIX `cat` — writes a file's contents to standard output. The file's
+        contents are persisted state; whether an attacker can write that file
+        is a property of the target, so this stays Secondary.
+
+    - name: head
+      kind: command
+      note: POSIX `head` — writes the leading part of a file to standard output.
+
+    - name: tail
+      kind: command
+      note: POSIX `tail` — writes the trailing part of a file to standard output.
+
+    - name: uci
+      kind: command
+      argv: [get]
+      note: >-
+        OpenWrt UCI — `uci get <config>.<section>.<option>` is documented to
+        print the stored value of that option, which is persisted state.
+
+    - name: fw_printenv
+      kind: command
+      note: >-
+        U-Boot `fw_printenv` — documented to print the U-Boot environment,
+        which persists across boots and is writable from the bootloader.
+
+    - name: getprop
+      kind: command
+      note: >-
+        Android `getprop` — documented to print a system property from the
+        property store, which is persisted state.

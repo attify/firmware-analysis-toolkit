@@ -1,0 +1,22 @@
+{
+  "id": "coap-auth-check-positive",
+  "kind": "positive",
+  "family": "validation-policy",
+  "language": "c",
+  "file_name": "coap_handler.c",
+  "compile_args": [
+    "clang",
+    "-x",
+    "c",
+    "-std=c11"
+  ],
+  "reference_symbols": [
+    "coap_handle_config_write"
+  ],
+  "surface_candidate": "coap_handle_config_write_variant",
+  "variant_candidate": "coap_handle_firmware_upload",
+  "baseline_candidates": [
+    "coap_handle_config_write_variant"
+  ],
+  "source": "typedef struct { int token; int method; const char* uri; const void* payload; int payload_len; } coap_request_t;\ntypedef struct { int code; } coap_response_t;\n\nint coap_check_permission(coap_request_t* req) { return 1; }\nvoid coap_enforce_permission(coap_request_t* req) { (void)req; }\nvoid coap_log_denied(coap_request_t* req) { (void)req; }\nvoid config_store_write(const char* uri, const void* data, int len) { (void)uri; (void)data; (void)len; }\nvoid firmware_flash_write(const void* data, int len) { (void)data; (void)len; }\n\nvoid coap_handle_config_write(coap_request_t* req, coap_response_t* resp)\n{\n  if (!coap_check_permission(req)) {\n    coap_log_denied(req);\n    resp->code = 401;\n    return;\n  }\n  coap_enforce_permission(req);\n  config_store_write(req->uri, req->payload, req->payload_len);\n  resp->code = 204;\n}\n\nvoid coap_handle_config_write_variant(coap_request_t* req, coap_response_t* resp)\n{\n  if (!coap_check_permission(req)) {\n    coap_log_denied(req);\n    resp->code = 401;\n    return;\n  }\n  coap_enforce_permission(req);\n  config_store_write(req->uri, req->payload, req->payload_len);\n  resp->code = 204;\n}\n\nvoid coap_handle_firmware_upload(coap_request_t* req, coap_response_t* resp)\n{\n  if (!coap_check_permission(req)) {\n    coap_log_denied(req);\n    resp->code = 401;\n    return;\n  }\n  coap_enforce_permission(req);\n  firmware_flash_write(req->payload, req->payload_len);\n  resp->code = 204;\n}\n"
+}

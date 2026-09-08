@@ -1,0 +1,77 @@
+# FAT Sink Profile: shell-command-exec
+# Shell-target companion to linux-command-exec. The ELF
+# string-seed path does not apply to shell scripts; each family here carries
+# a `pattern` regex that `fat sink-discovery --rootfs` applies per line to
+# *.sh / shebang scripts found under a rootfs.
+
+# Every command-name anchor below carries a leading `\b`: without it the bare
+# name also matches as a suffix of a longer word (`parsed`, `xinsmod`, `flush`,
+# `flash`), which fired on lines with no shell invocation at all.
+# `/` is a non-word character, so absolute paths such as `/bin/sh` and
+# `/sbin/insmod` still match, and so does `busybox sed` (space is non-word).
+#
+# The two shell families spell out an alternation of shell names rather than a
+# bare `sh`. Do NOT simplify them back: `\bsh` matches only the literal `sh`,
+# so a bare anchor silently drops `ash -c "$x"` — and `ash` is busybox's shell,
+# i.e. the most common shell in an embedded rootfs by a wide margin. Before the
+# `\b` was added these matched only incidentally, as a suffix of `ash`/`bash`;
+# the alternation makes that coverage deliberate.
+#
+# Set: sh (POSIX), ash (busybox), bash, dash (Debian-derived), hush (small
+# busybox builds), mksh (Android's /system/bin/sh), ksh. The criterion is
+# "would a firmware rootfs script invoke it by this name". zsh, csh and tcsh
+# accept `-c` too but are desktop/interactive shells that embedded images do
+# not ship; they are deliberately excluded and are a one-token add if a target
+# ever needs them. `busybox sh` / `busybox ash` match via the leading `sh`/`ash`
+# alternative because the preceding space is a non-word character.
+
+name: shell-command-exec
+version: 1
+description: Dangerous shell constructs that execute attacker-influenced data
+target: shell
+
+families:
+  dynamic-eval:
+    pattern: '\beval\b'
+    severity: high
+    note: arbitrary command execution from any tainted variable
+
+  sed-var-injection:
+    pattern: '\bsed\s+-[^|]*"[^"]*\$'
+    severity: high
+    note: sed expression with variable interpolation; replacement string can break out of s/// via the GNU e flag or metacharacters
+
+  insmod-var-path:
+    pattern: '\binsmod\s+[^\s]*\$'
+    severity: medium
+    note: kernel module path/argument from variable
+
+  backtick-var-subst:
+    pattern: '`[^`]*\$[A-Za-z_]'
+    severity: medium
+    note: command substitution with variable
+
+  dollar-paren-var-subst:
+    pattern: '\$\([^)]*\$[A-Za-z_]'
+    severity: medium
+    note: $(...) command substitution with variable interpolation
+
+  unquoted-var-as-path:
+    # The mkfs suffix class must include digits: `[a-z]+` stops before the
+    # trailing digit of `mkfs.ext4` / `mkfs.jffs2`, and the following `\b`
+    # then sits between two word characters and can never hold.
+    pattern: '\b(mkfs\.[a-z0-9]+|mount|cp|mv|rm)\b[^"]*\$[0-9A-Za-z_]'
+    severity: medium
+    note: unquoted variable used as a filesystem path argument
+
+  sh-c-var:
+    pattern: '\b(sh|ash|bash|dash|hush|mksh|ksh)\s+-c\s+"\$'
+    severity: high
+    note: shell invocation with a variable-bearing command string
+
+  tmpfs-staged-exec:
+    # Same alternation as sh-c-var: `ash /tmp/x` and `bash /tmp/x` are the same
+    # primitive as `sh /tmp/x` and must not be left behind.
+    pattern: '\b(sh|ash|bash|dash|hush|mksh|ksh)\s+/tmp/'
+    severity: high
+    note: persistence-free RCE primitive — script staged in tmpfs and executed

@@ -1,0 +1,36 @@
+{
+  "id": "genie-constant-arg",
+  "kind": "binary",
+  "edges": [
+    { "kind": "ControlDependsOn", "from": 0, "to": 1 },
+    { "kind": "WritesConstant", "from": 2, "to": 1 }
+  ],
+  "nodes": [
+    {
+      "kind": "Source",
+      "label": "getenv(\"QUERY_STRING\").ret",
+      "attrs": {
+        "call_name": "getenv",
+        "arg0": "QUERY_STRING",
+        "slot_name": "ret",
+        "slot_index": "-1"
+      }
+    },
+    {
+      "kind": "SinkSlot",
+      "label": "popen.arg0",
+      "attrs": {
+        "sink_name": "popen",
+        "slot_name": "arg0",
+        "slot_index": "0"
+      }
+    },
+    {
+      "kind": "Constant",
+      "label": "\"/opt/xagent/xagent_control -c on_claim -s genie -r true\"",
+      "attrs": {
+        "constant_kind": "string"
+      }
+    }
+  ]
+}

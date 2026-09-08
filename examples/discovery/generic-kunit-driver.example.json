@@ -1,0 +1,60 @@
+{
+  "schema_version": "fat-discovery-target-lanes-v1",
+  "local_manifest_path_hint": "examples/discovery/generic-kunit-driver.local.json",
+  "lanes": [
+    {
+      "lane_id": "kernel-module-kunit",
+      "family_allowlist": [
+        "size-stride-arithmetic"
+      ],
+      "source_root": "${TARGET_SOURCE_ROOT}",
+      "build_dir": "${TARGET_BUILD_DIR}",
+      "binary_or_driver": "python3",
+      "launcher_command": [
+        "python3",
+        "${FAT_REPO_ROOT}/scripts/discovery/kunit_driver.py",
+        "--suite",
+        "${TARGET_KUNIT_SUITE}",
+        "--kunit-config",
+        "${TARGET_KUNIT_CONFIG}",
+        "--source-root",
+        "${TARGET_SOURCE_ROOT}"
+      ],
+      "required_env": {
+        "FAT_KUNIT_RUNNER": "${FAT_KUNIT_RUNNER}"
+      },
+      "adapter": {
+        "kind": "direct-cli-size",
+        "config": {}
+      },
+      "runtime_capabilities": {},
+      "timeout_ms": 30000,
+      "artifact_dir": "${TARGET_BUILD_DIR}/fat-artifacts",
+      "sanitizer_mode": "asan",
+      "proof_class_allowlist": [
+        "asan-heap-buffer-overflow",
+        "guard-trip"
+      ],
+      "preflight_checks": [
+        {
+          "check_id": "source-root-exists",
+          "kind": "path-exists",
+          "target": "source_root",
+          "detail": "target source root must exist"
+        },
+        {
+          "check_id": "build-dir-exists",
+          "kind": "path-exists",
+          "target": "build_dir",
+          "detail": "target build dir must exist"
+        },
+        {
+          "check_id": "kunit-runner-present",
+          "kind": "env-nonempty",
+          "target": "FAT_KUNIT_RUNNER",
+          "detail": "kunit runner command must be present"
+        }
+      ]
+    }
+  ]
+}

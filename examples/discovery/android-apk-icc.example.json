@@ -1,0 +1,62 @@
+{
+  "schema_version": "fat-discovery-target-lanes-v1",
+  "local_manifest_path_hint": "examples/discovery/android-apk-icc.local.json",
+  "lanes": [
+    {
+      "lane_id": "android-router-icc",
+      "family_allowlist": ["remote-router-gadget"],
+      "adapter_kind": "android-adb-icc",
+      "source_root": "${FAT_REPO_ROOT}",
+      "build_dir": "${FAT_REPO_ROOT}",
+      "binary_or_driver": "python3",
+      "launcher_command": [
+        "python3",
+        "${FAT_REPO_ROOT}/scripts/discovery/android/adb_icc_runner.py",
+        "--package",
+        "com.example.target",
+        "--apk",
+        "${TARGET_APK}",
+        "--artifact-dir",
+        "${ARTIFACT_DIR}",
+        "--action",
+        "android.intent.action.VIEW",
+        "--data-uri",
+        "route://deeplink"
+      ],
+      "required_env": {
+        "ANDROID_SERIAL": "${ANDROID_SERIAL}"
+      },
+      "runtime_capabilities": {},
+      "timeout_ms": 30000,
+      "artifact_dir": "${ARTIFACT_DIR}",
+      "sanitizer_mode": "none",
+      "proof_class_allowlist": ["internal-navigation"],
+      "preflight_checks": [
+        {
+          "check_id": "python3-available",
+          "kind": "command-available",
+          "target": "python3",
+          "detail": "python3 must be available to launch the ICC runner"
+        },
+        {
+          "check_id": "adb-available",
+          "kind": "command-available",
+          "target": "adb",
+          "detail": "adb must be available on the host"
+        },
+        {
+          "check_id": "adb-device-ready",
+          "kind": "adb-device",
+          "target": "ANDROID_SERIAL",
+          "detail": "ANDROID_SERIAL must resolve to a ready adb device"
+        },
+        {
+          "check_id": "package-installed",
+          "kind": "adb-package-installed",
+          "target": "com.example.target",
+          "detail": "target package should be present or installable on the device"
+        }
+      ]
+    }
+  ]
+}

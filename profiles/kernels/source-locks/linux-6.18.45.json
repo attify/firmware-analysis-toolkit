@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0",
+  "id": "ksl-5edf2d6a88d49d80",
+  "project": "Linux",
+  "release": "6.18.45",
+  "archive_url": "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.18.45.tar.xz",
+  "archive_digest": "sha256:30fa4a56579ca614ac125a12614f7f6466f87ab1278aef7b951dd74156deab33",
+  "signature_url": "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.18.45.tar.sign",
+  "checksums_url": "https://cdn.kernel.org/pub/linux/kernel/v6.x/sha256sums.asc",
+  "license": "GPL-2.0-only"
+}

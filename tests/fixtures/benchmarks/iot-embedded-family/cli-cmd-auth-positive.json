@@ -1,0 +1,22 @@
+{
+  "id": "cli-cmd-auth-positive",
+  "kind": "positive",
+  "family": "validation-policy",
+  "language": "c",
+  "file_name": "device_cli.c",
+  "compile_args": [
+    "clang",
+    "-x",
+    "c",
+    "-std=c11"
+  ],
+  "reference_symbols": [
+    "cli_handle_factory_reset"
+  ],
+  "surface_candidate": "cli_handle_factory_reset_variant",
+  "variant_candidate": "cli_handle_set_password",
+  "baseline_candidates": [
+    "cli_handle_factory_reset_variant"
+  ],
+  "source": "typedef struct { int uid; const char* cmd; const char* arg; } cli_ctx_t;\n\nint cli_has_permission(cli_ctx_t* ctx) { return ctx->uid == 0; }\nvoid cli_enforce_permission(cli_ctx_t* ctx) { (void)ctx; }\nvoid cli_log_denied(cli_ctx_t* ctx) { (void)ctx; }\nvoid nvs_erase_all(void) {}\nvoid set_admin_password(const char* pw) { (void)pw; }\n\nvoid cli_handle_factory_reset(cli_ctx_t* ctx)\n{\n  if (!cli_has_permission(ctx)) {\n    cli_log_denied(ctx);\n    return;\n  }\n  cli_enforce_permission(ctx);\n  nvs_erase_all();\n}\n\nvoid cli_handle_factory_reset_variant(cli_ctx_t* ctx)\n{\n  if (!cli_has_permission(ctx)) {\n    cli_log_denied(ctx);\n    return;\n  }\n  cli_enforce_permission(ctx);\n  nvs_erase_all();\n}\n\nvoid cli_handle_set_password(cli_ctx_t* ctx)\n{\n  if (!cli_has_permission(ctx)) {\n    cli_log_denied(ctx);\n    return;\n  }\n  cli_enforce_permission(ctx);\n  set_admin_password(ctx->arg);\n}\n"
+}

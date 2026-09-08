@@ -1,0 +1,41 @@
+[package]
+name = "fat-toolkit-query"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+readme.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Evidence IR and multi-adapter query engine for FAT"
+publish = false
+
+[lib]
+name = "fat_query"
+path = "src/lib.rs"
+
+[features]
+# Fixture loaders and graph builders used only by this workspace's tests.
+# Off by default so they stay out of the published API.
+test-fixtures = []
+
+[dependencies]
+clang = { version = "2", features = ["runtime"] }
+fat_core = { version = "=2.0.0-alpha.1", path = "../fat_core", package = "fat-toolkit-core" }
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+regex = "1"
+shell-words = "1"
+sha2 = "0.10"
+walkdir = "2"
+tempfile = "3"
+zip = "2"
+
+[dev-dependencies]
+
+[lints]
+workspace = true

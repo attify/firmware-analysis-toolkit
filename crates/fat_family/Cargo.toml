@@ -1,0 +1,30 @@
+[package]
+name = "fat-toolkit-family"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+readme.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Signal-based device family classification for FAT"
+publish = false
+
+[lib]
+name = "fat_family"
+path = "src/lib.rs"
+
+[dependencies]
+
+[[test]]
+name = "test_family_classification"
+path = "../../tests/integration/test_family_classification.rs"
+
+[[test]]
+name = "test_discovery_family_specs"
+path = "../../tests/integration/test_discovery_family_specs.rs"
+
+[lints]
+workspace = true

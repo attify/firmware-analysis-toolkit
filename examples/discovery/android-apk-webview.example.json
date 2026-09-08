@@ -1,0 +1,62 @@
+{
+  "schema_version": "fat-discovery-target-lanes-v1",
+  "local_manifest_path_hint": "examples/discovery/android-apk-webview.local.json",
+  "lanes": [
+    {
+      "lane_id": "android-webview-uri",
+      "family_allowlist": ["webview-bridge-uri"],
+      "adapter_kind": "android-instrumentation-webview",
+      "source_root": "${FAT_REPO_ROOT}",
+      "build_dir": "${FAT_REPO_ROOT}",
+      "binary_or_driver": "python3",
+      "launcher_command": [
+        "python3",
+        "${FAT_REPO_ROOT}/scripts/discovery/android/webview_runner.py",
+        "--package",
+        "com.example.webview",
+        "--apk",
+        "${TARGET_APK}",
+        "--artifact-dir",
+        "${ARTIFACT_DIR}",
+        "--entry-url",
+        "https://attacker.example/bridge.html",
+        "--runner",
+        "com.example.webview.test/androidx.test.runner.AndroidJUnitRunner"
+      ],
+      "required_env": {
+        "ANDROID_SERIAL": "${ANDROID_SERIAL}"
+      },
+      "runtime_capabilities": {},
+      "timeout_ms": 30000,
+      "artifact_dir": "${ARTIFACT_DIR}",
+      "sanitizer_mode": "none",
+      "proof_class_allowlist": ["bridge-reachable-from-uri"],
+      "preflight_checks": [
+        {
+          "check_id": "python3-available",
+          "kind": "command-available",
+          "target": "python3",
+          "detail": "python3 must be available to launch the WebView runner"
+        },
+        {
+          "check_id": "adb-available",
+          "kind": "command-available",
+          "target": "adb",
+          "detail": "adb must be available on the host"
+        },
+        {
+          "check_id": "adb-device-ready",
+          "kind": "adb-device",
+          "target": "ANDROID_SERIAL",
+          "detail": "ANDROID_SERIAL must resolve to a ready adb device"
+        },
+        {
+          "check_id": "package-installed",
+          "kind": "adb-package-installed",
+          "target": "com.example.webview",
+          "detail": "target package should be present or installable on the device"
+        }
+      ]
+    }
+  ]
+}

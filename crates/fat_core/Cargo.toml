@@ -1,0 +1,41 @@
+[package]
+name = "fat-toolkit-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+readme.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Shared models and SQLite persistence for FAT"
+publish = false
+
+[lib]
+name = "fat_core"
+path = "src/lib.rs"
+
+[dependencies]
+rusqlite = { version = "0.32", features = ["bundled"] }
+semver = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+walkdir = "2"
+sha2 = "0.10"
+
+[[test]]
+name = "test_project_lifecycle"
+path = "../../tests/integration/test_project_lifecycle.rs"
+
+[[test]]
+name = "test_firmware_diff"
+path = "../../tests/integration/test_firmware_diff.rs"
+
+[dev-dependencies]
+serde_json = "1"
+tempfile = "3"
+
+[lints]
+workspace = true

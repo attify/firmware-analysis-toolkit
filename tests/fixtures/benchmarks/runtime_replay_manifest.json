@@ -1,0 +1,54 @@
+{
+  "family": "fat-replay-family-architecture",
+  "top_k": 3,
+  "cases": [
+    {
+      "id": "objcxx-positive",
+      "fixture": "fat-replay-family/objcxx-positive.json"
+    },
+    {
+      "id": "non-objc-positive",
+      "fixture": "fat-replay-family/non-objc-positive.json"
+    },
+    {
+      "id": "matched-negative",
+      "fixture": "fat-replay-family/matched-negative.json"
+    },
+    {
+      "id": "dependency-roll-vendored-positive",
+      "fixture": "fat-replay-family/dependency-roll-vendored-positive.json"
+    },
+    {
+      "id": "dependency-roll-upstream-hidden-positive",
+      "fixture": "fat-replay-family/dependency-roll-upstream-hidden-positive.json"
+    },
+    {
+      "id": "dependency-roll-upstream-hidden-negative",
+      "fixture": "fat-replay-family/dependency-roll-upstream-hidden-negative.json"
+    },
+    {
+      "id": "lifetime-positive",
+      "fixture": "fat-replay-family/lifetime-positive.json"
+    },
+    {
+      "id": "lifetime-negative",
+      "fixture": "fat-replay-family/lifetime-negative.json"
+    },
+    {
+      "id": "protocol-positive",
+      "fixture": "fat-replay-family/protocol-positive.json"
+    },
+    {
+      "id": "protocol-negative",
+      "fixture": "fat-replay-family/protocol-negative.json"
+    },
+    {
+      "id": "validation-positive",
+      "fixture": "fat-replay-family/validation-positive.json"
+    },
+    {
+      "id": "validation-negative",
+      "fixture": "fat-replay-family/validation-negative.json"
+    }
+  ]
+}

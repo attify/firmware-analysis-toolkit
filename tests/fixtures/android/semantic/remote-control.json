@@ -1,0 +1,99 @@
+{
+  "bundle_version": "android-semantic/v1alpha1",
+  "target": {
+    "application_id": "com.example.remotecontrol",
+    "package_name": "com.example.remotecontrol",
+    "version_code": "1",
+    "version_name": "1.0.0",
+    "split_names": []
+  },
+  "extractor": {
+    "extractor_id": "fat-app-jadx-recon",
+    "extractor_version": "0.1.0",
+    "input_kind": "synthetic-jadx-tree",
+    "generated_at_utc": "2026-01-01T00:00:00Z",
+    "degraded": false,
+    "notes": ["synthetic public fixture"]
+  },
+  "facts": [
+    {
+      "fact_id": "fact-platform-framework-0",
+      "kind": "platform.framework",
+      "subject": "flutter",
+      "support_level": "Observed",
+      "provenance": [{"origin": "fixture", "artifact": "synthetic/remote-control"}],
+      "attributes": {}
+    },
+    {
+      "fact_id": "fact-platform-abi-0",
+      "kind": "platform.abi",
+      "subject": "arm64-v8a",
+      "support_level": "Observed",
+      "provenance": [{"origin": "fixture", "artifact": "synthetic/remote-control"}],
+      "attributes": {}
+    },
+    {
+      "fact_id": "fact-environment-0",
+      "kind": "environment.backend-url",
+      "subject": "https://device-api.example",
+      "support_level": "Observed",
+      "provenance": [{"origin": "fixture", "artifact": "https://device-api.example"}],
+      "attributes": {"cluster": "device-api", "host": "device-api.example", "rank": "100"}
+    },
+    {
+      "fact_id": "fact-identity-0",
+      "kind": "identity.auth-header",
+      "subject": "x-device-token",
+      "support_level": "Observed",
+      "provenance": [{"origin": "fixture", "artifact": "x-device-token"}],
+      "attributes": {}
+    }
+  ],
+  "symbol_identities": [],
+  "control_surfaces": [
+    {
+      "surface_id": "control-surface-0",
+      "kind": "endpoint-template",
+      "trigger": "/api/v1/devices/{id}/module/status",
+      "notes": ["synthetic fixture"]
+    }
+  ],
+  "transport_surfaces": [
+    {
+      "surface_id": "transport-surface-0",
+      "kind": "topic-root",
+      "source": "mqtt-broker",
+      "sink": "devices/user/",
+      "carrier": "fixture",
+      "notes": []
+    },
+    {
+      "surface_id": "transport-surface-1",
+      "kind": "mqtt-marker",
+      "source": "app-auth-path",
+      "sink": "mqtt_host",
+      "carrier": "fixture",
+      "notes": []
+    }
+  ],
+  "trust_boundaries": [],
+  "resources": [],
+  "native_semantics": [],
+  "correlations": [
+    {
+      "correlation_id": "correlation-0",
+      "kind": "auth-to-api",
+      "members": ["x-device-token", "cloud API URL/endpoint presence"],
+      "support_level": "Inferred",
+      "rationale": "auth header likely gates cloud API surfaces"
+    },
+    {
+      "correlation_id": "correlation-1",
+      "kind": "api-to-mqtt",
+      "members": ["x-device-token", "mqtt_host"],
+      "support_level": "Inferred",
+      "rationale": "cloud identity and MQTT surface coexist in the same app authority path"
+    }
+  ],
+  "warnings": []
+}

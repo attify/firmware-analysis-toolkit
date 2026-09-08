@@ -1,0 +1,42 @@
+[package]
+name = "fat-toolkit-taint"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+readme.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Firmware-wide taint analysis via Ghidra decompile + Joern c2cpg"
+publish = false
+
+[lib]
+name = "fat_taint"
+path = "src/lib.rs"
+
+[dependencies]
+fat-core = { version = "=2.0.0-alpha.1", path = "../fat_core", package = "fat-toolkit-core" }
+fat-query = { version = "=2.0.0-alpha.1", path = "../fat_query", package = "fat-toolkit-query" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+tempfile = "3"
+walkdir = "2"
+regex = "1"
+thiserror = "2"
+tracing = "0.1"
+glob = "0.3"
+r2pipe = "0.8.0"
+sha2 = "0.10"
+hex = "0.4"
+dirs = "5"
+tree-sitter = "=0.25.10"
+tree-sitter-bash = "=0.25.1"
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

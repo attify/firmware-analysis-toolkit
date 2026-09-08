@@ -1,0 +1,34 @@
+[package]
+name = "fat-toolkit-plugin-host"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+readme.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Plugin discovery, orchestration, and dispatch for FAT"
+publish = false
+
+[lib]
+name = "fat_plugin_host"
+path = "src/lib.rs"
+
+[dependencies]
+fat_analyze = { version = "=2.0.0-alpha.1", path = "../fat_analyze", package = "fat-toolkit-analyze" }
+fat_core = { version = "=2.0.0-alpha.1", path = "../fat_core", package = "fat-toolkit-core" }
+fat_plugin_api = { version = "=2.0.0-alpha.1", path = "../fat_plugin_api", package = "fat-toolkit-plugin-api" }
+tempfile = "3"
+
+[[test]]
+name = "test_plugin_contract"
+path = "../../tests/integration/test_plugin_contract.rs"
+
+[[test]]
+name = "test_plugin_host_dispatch"
+path = "../../tests/integration/test_plugin_host_dispatch.rs"
+
+[lints]
+workspace = true

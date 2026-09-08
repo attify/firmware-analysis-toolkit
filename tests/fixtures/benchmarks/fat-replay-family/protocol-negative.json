@@ -1,0 +1,18 @@
+{
+  "id": "protocol-negative",
+  "kind": "negative",
+  "family": "gpu-protocol-order-lifecycle",
+  "language": "cxx",
+  "file_name": "gpu_protocol_negative.cpp",
+  "compile_args": [
+    "clang++",
+    "-x",
+    "c++",
+    "-std=c++17"
+  ],
+  "reference_symbols": [
+    "GpuMapDestroySequence"
+  ],
+  "surface_candidate": "GpuGuardedSubmitCleanup",
+  "source": "void GpuMapAsync() {}\nvoid GpuSubmit() {}\nvoid GpuDestroy() {}\nvoid GpuStateGuard() {}\n\nvoid GpuMapDestroySequence() {\n  GpuMapAsync();\n  GpuSubmit();\n  GpuDestroy();\n}\n\nvoid GpuGuardedSubmitCleanup() {\n  GpuStateGuard();\n  GpuSubmit();\n  GpuDestroy();\n}\n\nvoid GpuPlainSubmitNoise() {\n  GpuSubmit();\n}\n"
+}

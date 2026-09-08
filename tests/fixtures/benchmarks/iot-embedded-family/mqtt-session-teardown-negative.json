@@ -1,0 +1,18 @@
+{
+  "id": "mqtt-session-teardown-negative",
+  "kind": "negative",
+  "family": "lifetime-ownership",
+  "language": "c",
+  "file_name": "mqtt_session_negative.c",
+  "compile_args": [
+    "clang",
+    "-x",
+    "c",
+    "-std=c11"
+  ],
+  "reference_symbols": [
+    "mqtt_session_destroy"
+  ],
+  "surface_candidate": "mqtt_session_reconnect",
+  "source": "typedef struct { int fd; int state; void* user_data; } mqtt_session_t;\n\nvoid mqtt_unsubscribe_all(mqtt_session_t* s) { (void)s; }\nvoid mqtt_close_socket(int fd) { (void)fd; }\nvoid mqtt_free_session(mqtt_session_t* s) { (void)s; }\nvoid mqtt_release_observer(mqtt_session_t* s) { (void)s; }\n\nvoid mqtt_session_destroy(mqtt_session_t* session)\n{\n  mqtt_release_observer(session);\n  mqtt_unsubscribe_all(session);\n  mqtt_close_socket(session->fd);\n  mqtt_free_session(session);\n}\n\nvoid mqtt_session_reconnect(mqtt_session_t* session)\n{\n  mqtt_close_socket(session->fd);\n  session->fd = 0;\n  session->state = 0;\n}\n"
+}

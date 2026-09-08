@@ -1,0 +1,24 @@
+{
+  "schema_version": "trust-path-analysis/v1",
+  "summary_fields_present": true,
+  "classification": "governing-updater",
+  "confidence": "medium",
+  "governing_update_path": {
+    "path": "/sbin/slpupgrade",
+    "candidate_classification": "governing-updater"
+  },
+  "candidates": [
+    {
+      "path": "/sbin/slpupgrade",
+      "candidate_classification": "governing-updater"
+    },
+    {
+      "path": "/usr/lib/libsecurity.so",
+      "candidate_classification": "supporting-boundary"
+    },
+    {
+      "path": "/usr/lib/libdecrypter.so",
+      "candidate_classification": "helper-only"
+    }
+  ]
+}

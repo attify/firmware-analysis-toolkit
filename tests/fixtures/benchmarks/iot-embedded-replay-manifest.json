@@ -1,0 +1,74 @@
+{
+  "family": "iot-embedded-family",
+  "top_k": 3,
+  "cases": [
+    {
+      "id": "mqtt-session-teardown-positive",
+      "fixture": "iot-embedded-family/mqtt-session-teardown-positive.json"
+    },
+    {
+      "id": "mqtt-session-teardown-negative",
+      "fixture": "iot-embedded-family/mqtt-session-teardown-negative.json"
+    },
+    {
+      "id": "uart-rx-callback-positive",
+      "fixture": "iot-embedded-family/uart-rx-callback-positive.json"
+    },
+    {
+      "id": "uart-rx-callback-negative",
+      "fixture": "iot-embedded-family/uart-rx-callback-negative.json"
+    },
+    {
+      "id": "ota-payload-copy-positive",
+      "fixture": "iot-embedded-family/ota-payload-copy-positive.json"
+    },
+    {
+      "id": "ota-payload-copy-negative",
+      "fixture": "iot-embedded-family/ota-payload-copy-negative.json"
+    },
+    {
+      "id": "sensor-packet-parse-positive",
+      "fixture": "iot-embedded-family/sensor-packet-parse-positive.json"
+    },
+    {
+      "id": "sensor-packet-parse-negative",
+      "fixture": "iot-embedded-family/sensor-packet-parse-negative.json"
+    },
+    {
+      "id": "coap-auth-check-positive",
+      "fixture": "iot-embedded-family/coap-auth-check-positive.json"
+    },
+    {
+      "id": "coap-auth-check-negative",
+      "fixture": "iot-embedded-family/coap-auth-check-negative.json"
+    },
+    {
+      "id": "cli-cmd-auth-positive",
+      "fixture": "iot-embedded-family/cli-cmd-auth-positive.json"
+    },
+    {
+      "id": "cli-cmd-auth-negative",
+      "fixture": "iot-embedded-family/cli-cmd-auth-negative.json"
+    },
+    {
+      "id": "dma-transfer-lifecycle-positive",
+      "fixture": "iot-embedded-family/dma-transfer-lifecycle-positive.json"
+    },
+    {
+      "id": "dma-transfer-lifecycle-negative",
+      "fixture": "iot-embedded-family/dma-transfer-lifecycle-negative.json"
+    },
+    {
+      "id": "spi-flash-sequence-positive",
+      "fixture": "iot-embedded-family/spi-flash-sequence-positive.json"
+    },
+    {
+      "id": "spi-flash-sequence-negative",
+      "fixture": "iot-embedded-family/spi-flash-sequence-negative.json"
+    },
+    {
+      "id": "gpio-isr-teardown-positive",
+      "fixture": "iot-embedded-family/gpio-isr-teardown-positive.json"
+    }
+  ]
+}

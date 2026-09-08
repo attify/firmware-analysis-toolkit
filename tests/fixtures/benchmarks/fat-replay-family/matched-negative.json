@@ -1,0 +1,20 @@
+{
+  "id": "matched-negative",
+  "kind": "negative",
+  "family": "bounds-size-arithmetic",
+  "language": "objcxx",
+  "file_name": "TextureNegative.mm",
+  "compile_args": [
+    "clang++",
+    "-x",
+    "objective-c++",
+    "-std=c++17",
+    "-target",
+    "arm64-apple-darwin"
+  ],
+  "reference_symbols": [
+    "setPerSliceSubImage"
+  ],
+  "surface_candidate": "copyOnlyShadow",
+  "source": "int MakeBuffer(int x) { return x; }\nvoid SaturateDepth(int) {}\nvoid CopyBufferToOriginalTextureIfDstIsAView(int, int) {}\nvoid CopyBytes(int, int) {}\n\nclass TextureMtl {\npublic:\n  void setPerSliceSubImage(int srcBytesPerImage, int pixelsDepthPitch)\n  {\n    auto buffer = MakeBuffer(pixelsDepthPitch);\n    SaturateDepth(srcBytesPerImage);\n    CopyBufferToOriginalTextureIfDstIsAView(buffer, srcBytesPerImage);\n  }\n\n  void copyOnlyShadow(int srcBytesPerImage)\n  {\n    CopyBytes(srcBytesPerImage, srcBytesPerImage);\n  }\n\n  void copyOnlyProbe(int srcBytesPerImage)\n  {\n    CopyBytes(srcBytesPerImage, srcBytesPerImage);\n  }\n};\n"
+}

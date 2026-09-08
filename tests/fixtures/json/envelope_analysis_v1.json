@@ -1,0 +1,7 @@
+{
+  "schema_version": "envelope-analysis/v1",
+  "summary_fields_present": true,
+  "classification": "opaque-wrapper-likely",
+  "ecb_assessment": "ecb-unlikely",
+  "reason": "high entropy with minimal repeated AES-sized blocks suggests an opaque wrapper"
+}

@@ -1,0 +1,19 @@
+{
+  "cases": [
+    {
+      "id": "genie-constant-arg",
+      "kind": "binary",
+      "path": "binary/genie-constant-arg"
+    },
+    {
+      "id": "invariant-permission",
+      "kind": "source",
+      "path": "source/invariant-permission"
+    },
+    {
+      "id": "verification",
+      "kind": "runtime",
+      "path": "runtime/verification"
+    }
+  ]
+}

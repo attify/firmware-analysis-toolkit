@@ -1,0 +1,26 @@
+pub mod active_run;
+pub mod blocker;
+pub mod kernel_catalog;
+pub mod plan;
+pub mod preflight;
+pub mod readiness_engine;
+pub mod reference_runner;
+pub mod repair;
+pub mod run;
+pub mod service_runner;
+pub mod session;
+pub mod staging_builder;
+pub mod strategy;
+pub mod substrate_selection;
+pub mod synthesizer;
+pub mod system_launch;
+pub mod system_runner;
+pub mod target_profile;
+pub mod validators;
+
+pub use active_run::ActiveRun;
+pub use plan::{create_emulation_bundle, EmulationPlan, EmulationPlanError};
+pub use repair::{decide_repair, RepairDecision};
+pub use run::EmulationRun;
+pub use session::EmulationSession;
+pub use system_launch::{launch_native_system, launch_native_system_with, SystemLaunchResult};

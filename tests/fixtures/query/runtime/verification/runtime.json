@@ -1,0 +1,9 @@
+{
+  "finding_id": "CHAIN-0001",
+  "verdict": "Confirmed",
+  "observed_sink": "system.arg0",
+  "evidence": [
+    "http request reached handler",
+    "system invoked in emulation"
+  ]
+}

@@ -1,0 +1,28 @@
+[package]
+name = "fat-toolkit-package"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+readme.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Firmware package and blob parsing helpers for FAT"
+publish = false
+
+[lib]
+name = "fat_package"
+path = "src/lib.rs"
+
+[dependencies]
+md-5 = "0.10"
+num-bigint = "0.4"
+sha2 = "0.10"
+
+[dev-dependencies]
+sha2 = "0.10"
+
+[lints]
+workspace = true

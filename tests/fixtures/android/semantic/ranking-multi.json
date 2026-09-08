@@ -1,0 +1,219 @@
+{
+  "bundle_version": "android-semantic/v1alpha1",
+  "target": {
+    "application_id": "com.example.rank",
+    "package_name": "com.example.rank",
+    "version_code": "9",
+    "version_name": "3.1",
+    "split_names": []
+  },
+  "extractor": {
+    "extractor_id": "fat-app-jadx-recon",
+    "extractor_version": "0.1.0",
+    "input_kind": "jadx-tree",
+    "generated_at_utc": "2026-04-06T12:00:00Z",
+    "degraded": false,
+    "notes": []
+  },
+  "facts": [
+    {
+      "fact_id": "fact-router",
+      "kind": "control-surface.router-dispatch",
+      "subject": "Lcom/example/Router;->dispatch(Ljava/lang/String;)V",
+      "support_level": "Observed",
+      "provenance": [
+        {
+          "origin": "jadx",
+          "artifact": "sources/com/example/Router.java"
+        }
+      ],
+      "attributes": {
+        "route_source": "intent-extra"
+      }
+    },
+    {
+      "fact_id": "fact-auth",
+      "kind": "identity.auth-header",
+      "subject": "x-device-token",
+      "support_level": "Observed",
+      "provenance": [
+        {
+          "origin": "raw-scan",
+          "artifact": "x-device-token"
+        }
+      ],
+      "attributes": {}
+    },
+    {
+      "fact_id": "fact-backend",
+      "kind": "environment.backend-url",
+      "subject": "https://api.example.rank",
+      "support_level": "Observed",
+      "provenance": [
+        {
+          "origin": "raw-scan",
+          "artifact": "https://api.example.rank"
+        }
+      ],
+      "attributes": {
+        "cluster": "api",
+        "rank": "100"
+      }
+    },
+    {
+      "fact_id": "fact-webview-uri",
+      "kind": "webview.uri-validation",
+      "subject": "weak-allowlist",
+      "support_level": "Inferred",
+      "provenance": [
+        {
+          "origin": "jadx",
+          "artifact": "sources/com/example/WebViewActivity.java"
+        }
+      ],
+      "attributes": {
+        "strength": "weak"
+      }
+    }
+  ],
+  "symbol_identities": [
+    {
+      "symbol_id": "sym-router-dispatch",
+      "language": "java",
+      "kind": "method",
+      "qualified_name": "com.example.Router.dispatch",
+      "descriptor": "(Ljava/lang/String;)V",
+      "aliases": []
+    },
+    {
+      "symbol_id": "sym-webview-load",
+      "language": "java",
+      "kind": "method",
+      "qualified_name": "com.example.WebViewActivity.loadTrustedPage",
+      "descriptor": "(Ljava/lang/String;)V",
+      "aliases": []
+    },
+    {
+      "symbol_id": "sym-js-bridge",
+      "language": "java",
+      "kind": "method",
+      "qualified_name": "com.example.JsBridge.openDeepLink",
+      "descriptor": "(Ljava/lang/String;)V",
+      "aliases": []
+    }
+  ],
+  "control_surfaces": [
+    {
+      "surface_id": "control-router-dispatch",
+      "kind": "router-dispatch",
+      "entry_symbol": "sym-router-dispatch",
+      "trigger": "android.intent.action.VIEW",
+      "notes": []
+    },
+    {
+      "surface_id": "control-endpoint-a",
+      "kind": "endpoint-template",
+      "trigger": "/api/devices/{id}/open",
+      "notes": []
+    },
+    {
+      "surface_id": "control-endpoint-b",
+      "kind": "endpoint-template",
+      "trigger": "/api/devices/{id}/close",
+      "notes": []
+    },
+    {
+      "surface_id": "control-webview-load",
+      "kind": "webview-load-url",
+      "entry_symbol": "sym-webview-load",
+      "trigger": "https://attacker.example/bridge.html",
+      "notes": []
+    },
+    {
+      "surface_id": "control-js-bridge",
+      "kind": "javascript-bridge-method",
+      "entry_symbol": "sym-js-bridge",
+      "trigger": "bridge.openDeepLink",
+      "notes": []
+    }
+  ],
+  "transport_surfaces": [
+    {
+      "surface_id": "transport-deeplink-intent",
+      "kind": "intent-parse",
+      "source": "external-deeplink",
+      "sink": "control-router-dispatch",
+      "carrier": "android.net.Uri",
+      "notes": []
+    },
+    {
+      "surface_id": "transport-topic",
+      "kind": "topic-root",
+      "source": "mqtt-broker",
+      "sink": "forward/device/",
+      "carrier": "raw-scan",
+      "notes": []
+    },
+    {
+      "surface_id": "transport-webview-uri",
+      "kind": "webview-uri-load",
+      "source": "remote-uri",
+      "sink": "control-webview-load",
+      "carrier": "https",
+      "notes": []
+    }
+  ],
+  "trust_boundaries": [
+    {
+      "boundary_id": "boundary-deeplink-router",
+      "kind": "deep-link-to-internal-router",
+      "from_zone": "external-caller",
+      "to_zone": "app-router",
+      "guard": "weak",
+      "notes": []
+    },
+    {
+      "boundary_id": "boundary-webview-bridge",
+      "kind": "webview-to-bridge",
+      "from_zone": "remote-web-content",
+      "to_zone": "javascript-bridge",
+      "guard": "weak-host-allowlist",
+      "notes": []
+    }
+  ],
+  "resources": [],
+  "native_semantics": [],
+  "correlations": [
+    {
+      "correlation_id": "correlation-auth-api",
+      "kind": "auth-to-api",
+      "members": [
+        "x-device-token",
+        "endpoint-template"
+      ],
+      "support_level": "Inferred",
+      "rationale": "auth header adjacent to backend paths"
+    },
+    {
+      "correlation_id": "correlation-rest-topic",
+      "kind": "rest-to-device-topic",
+      "members": [
+        "/api/devices/{id}/",
+        "forward/device/"
+      ],
+      "support_level": "Inferred",
+      "rationale": "device namespace appears in both REST and transport"
+    },
+    {
+      "correlation_id": "correlation-webview-bridge",
+      "kind": "webview-uri-to-bridge",
+      "members": [
+        "control-webview-load",
+        "control-js-bridge"
+      ],
+      "support_level": "Inferred",
+      "rationale": "same activity loads remote URI and exposes JS bridge"
+    }
+  ],
+  "warnings": []
+}

@@ -1,0 +1,22 @@
+{
+  "id": "gpio-isr-teardown-positive",
+  "kind": "positive",
+  "family": "lifetime-ownership",
+  "language": "c",
+  "file_name": "gpio_isr.c",
+  "compile_args": [
+    "clang",
+    "-x",
+    "c",
+    "-std=c11"
+  ],
+  "reference_symbols": [
+    "gpio_isr_handler_remove"
+  ],
+  "surface_candidate": "gpio_isr_handler_remove_variant",
+  "variant_candidate": "gpio_isr_handler_remove_neighbor",
+  "baseline_candidates": [
+    "gpio_isr_handler_remove_variant"
+  ],
+  "source": "typedef struct { int pin; void (*handler)(void*); void* arg; } gpio_isr_t;\n\nvoid gpio_isr_disable(int pin) { (void)pin; }\nvoid gpio_release_observer(gpio_isr_t* isr) { (void)isr; }\nvoid gpio_destroy_endpoint(gpio_isr_t* isr) { (void)isr; }\nvoid gpio_free_isr(gpio_isr_t* isr) { (void)isr; }\n\nvoid gpio_isr_handler_remove(gpio_isr_t* isr)\n{\n  gpio_release_observer(isr);\n  gpio_isr_disable(isr->pin);\n  gpio_destroy_endpoint(isr);\n  gpio_free_isr(isr);\n}\n\nvoid gpio_isr_handler_remove_variant(gpio_isr_t* isr)\n{\n  gpio_release_observer(isr);\n  gpio_isr_disable(isr->pin);\n  gpio_destroy_endpoint(isr);\n  gpio_free_isr(isr);\n}\n\nvoid gpio_isr_handler_remove_neighbor(gpio_isr_t* isr)\n{\n  gpio_release_observer(isr);\n  gpio_destroy_endpoint(isr);\n  gpio_free_isr(isr);\n}\n"
+}

@@ -1,0 +1,52 @@
+[package]
+name = "fat-toolkit-backend"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+readme.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Emulation backend abstraction and registry for FAT"
+publish = false
+
+[lib]
+name = "fat_backend"
+path = "src/lib.rs"
+
+[dependencies]
+fat-core = { version = "=2.0.0-alpha.1", path = "../fat_core", package = "fat-toolkit-core" }
+fat-family = { version = "=2.0.0-alpha.1", path = "../fat_family", package = "fat-toolkit-family" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+tempfile = "3"
+
+[[test]]
+name = "test_backend_registry"
+path = "../../tests/integration/test_backend_registry.rs"
+
+[[test]]
+name = "test_backend_driver_contract"
+path = "../../tests/integration/test_backend_driver_contract.rs"
+
+[[test]]
+name = "managed_linux_vm_substrate"
+path = "tests/managed_linux_vm_substrate.rs"
+
+[[test]]
+name = "emux_substrate"
+path = "tests/emux_substrate.rs"
+
+[[test]]
+name = "service_user_mode_substrate"
+path = "tests/service_user_mode_substrate.rs"
+
+[lints]
+workspace = true

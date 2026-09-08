@@ -1,0 +1,26 @@
+{
+  "id": "dependency-roll-upstream-hidden-positive",
+  "kind": "positive",
+  "family": "dependency-roll-upstream-hidden",
+  "language": "cxx",
+  "file_name": "upstream_hidden_roll.cpp",
+  "compile_args": [
+    "clang++",
+    "-x",
+    "c++",
+    "-std=c++17"
+  ],
+  "reference_symbols": [
+    "rollSurface"
+  ],
+  "surface_candidate": "rollSurfaceVariant",
+  "variant_candidate": "rollSurfaceVariant",
+  "baseline_candidates": [
+    "rollSurfaceVariant"
+  ],
+  "roll_metadata": {
+    "likely_upstream_repo": "https://example.invalid/upstream.git",
+    "no_local_vulnerable_source_likely": true
+  },
+  "source": "bool upstreamHasPermission(int) { return true; }\nvoid upstreamEnforce(int) {}\nvoid upstreamLogDenied(int) {}\nvoid localNoise(int) {}\n\nvoid rollSurface(int uid)\n{\n  if (!upstreamHasPermission(uid)) {\n    upstreamLogDenied(uid);\n    return;\n  }\n  upstreamEnforce(uid);\n}\n\nvoid rollSurfaceVariant(int uid)\n{\n  if (!upstreamHasPermission(uid)) {\n    upstreamLogDenied(uid);\n    return;\n  }\n  upstreamEnforce(uid);\n}\n\nvoid rollSurfaceNeighbor(int uid)\n{\n  localNoise(uid);\n  upstreamEnforce(uid);\n}\n\nvoid rollSurfaceDecoy(int uid)\n{\n  localNoise(uid);\n}\n"
+}

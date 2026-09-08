@@ -1,0 +1,22 @@
+# FAT emulation lifecycle configuration.
+# All values are optional — removing a key restores the default.
+
+[lifecycle]
+# Stop an emulation session that has had no successful health probe for this
+# many seconds. The background supervisor (managed-VM backends) enforces this
+# automatically.  `fat emulate gc` enforces it for native-system and service
+# backends that don't have a live supervisor.
+idle_timeout_secs = 600
+
+# Resident memory cap across the project's live sessions, in MiB, measured over
+# each supervisor's whole process group. A launch is refused while live sessions
+# already sit at or above this — an incoming session's footprint is not knowable
+# until it runs. Unset or 0 to disable.
+max_total_memory_mb = 0
+
+# Maximum number of concurrent live sessions in the project. A launch that would
+# exceed it is refused. 0 = unlimited.
+max_concurrent = 0
+
+# Remove staging directories (work/rehosting/<session>) when a session stops.
+prune_staging_on_stop = true

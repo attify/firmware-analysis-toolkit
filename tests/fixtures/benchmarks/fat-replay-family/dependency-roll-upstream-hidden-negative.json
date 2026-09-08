@@ -1,0 +1,22 @@
+{
+  "id": "dependency-roll-upstream-hidden-negative",
+  "kind": "negative",
+  "family": "dependency-roll-upstream-hidden",
+  "language": "cxx",
+  "file_name": "roll_surface_negative.cpp",
+  "compile_args": [
+    "clang++",
+    "-x",
+    "c++",
+    "-std=c++17"
+  ],
+  "reference_symbols": [
+    "rollSurface"
+  ],
+  "surface_candidate": "rollSurfaceDecoy",
+  "roll_metadata": {
+    "likely_upstream_repo": "https://example.invalid/upstream.git",
+    "no_local_vulnerable_source_likely": true
+  },
+  "source": "bool hasPermission(int) { return true; }\nvoid enforcePermission(int) {}\nvoid logDenied(int) {}\nvoid vendorCall(int) {}\n\nvoid rollSurface(int uid)\n{\n  if (!hasPermission(uid)) {\n    logDenied(uid);\n    return;\n  }\n  enforcePermission(uid);\n}\n\nvoid rollSurfaceVariant(int uid)\n{\n  vendorCall(uid);\n}\n\nvoid rollSurfaceDecoy(int uid)\n{\n  vendorCall(uid);\n}\n"
+}

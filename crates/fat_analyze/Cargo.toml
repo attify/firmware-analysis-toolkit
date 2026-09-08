@@ -1,0 +1,89 @@
+[package]
+name = "fat-toolkit-analyze"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+readme.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Pluggable firmware analyzer engine and built-in analyzers for FAT"
+publish = false
+
+[lib]
+name = "fat_analyze"
+path = "src/lib.rs"
+
+[dependencies]
+fat-core = { version = "=2.0.0-alpha.1", path = "../fat_core", package = "fat-toolkit-core" }
+fat-family = { version = "=2.0.0-alpha.1", path = "../fat_family", package = "fat-toolkit-family" }
+fat-plugin-api = { version = "=2.0.0-alpha.1", path = "../fat_plugin_api", package = "fat-toolkit-plugin-api" }
+anyhow = "1"
+aho-corasick = "1"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+walkdir = "2"
+lzma-rs = "0.3"
+md-5 = "0.10"
+xz2 = "0.1"
+flate2 = "1"
+crc32fast = "1"
+memchr = "2"
+
+[dev-dependencies]
+tempfile = "3"
+
+[[test]]
+name = "test_bootloader_analysis"
+path = "../../tests/integration/test_bootloader_analysis.rs"
+
+[[test]]
+name = "mcu_init_table"
+path = "tests/mcu_init_table.rs"
+
+[[test]]
+name = "mcu_init_handler"
+path = "tests/mcu_init_handler.rs"
+
+[[test]]
+name = "mcu_system_init"
+path = "tests/mcu_system_init.rs"
+
+[[test]]
+name = "mcu_sram_partition"
+path = "tests/mcu_sram_partition.rs"
+
+[[test]]
+name = "mcu_detect"
+path = "tests/mcu_detect.rs"
+
+[[test]]
+name = "engine_contract"
+path = "tests/engine_contract.rs"
+
+[[test]]
+name = "static_analyzers"
+path = "tests/static_analyzers.rs"
+
+[[test]]
+name = "loader_hints"
+path = "tests/loader_hints.rs"
+
+[[test]]
+name = "binary_diff_tests"
+path = "tests/binary_diff_tests.rs"
+
+[[test]]
+name = "cert_diff_tests"
+path = "tests/cert_diff_tests.rs"
+
+[[test]]
+name = "nvram_diff_tests"
+path = "tests/nvram_diff_tests.rs"
+
+[lints]
+workspace = true

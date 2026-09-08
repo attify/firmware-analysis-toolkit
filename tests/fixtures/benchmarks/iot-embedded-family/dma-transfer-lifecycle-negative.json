@@ -1,0 +1,18 @@
+{
+  "id": "dma-transfer-lifecycle-negative",
+  "kind": "negative",
+  "family": "gpu-protocol-order-lifecycle",
+  "language": "c",
+  "file_name": "dma_transfer_negative.c",
+  "compile_args": [
+    "clang",
+    "-x",
+    "c",
+    "-std=c11"
+  ],
+  "reference_symbols": [
+    "dma_map_submit_release"
+  ],
+  "surface_candidate": "dma_get_channel_status",
+  "source": "typedef struct { int channel; void* buf; int len; int status; } dma_desc_t;\n\nvoid dma_map_buffer(dma_desc_t* d) { (void)d; }\nvoid dma_submit(dma_desc_t* d) { (void)d; }\nvoid dma_unmap_buffer(dma_desc_t* d) { (void)d; }\nvoid dma_release_channel(dma_desc_t* d) { (void)d; }\n\nvoid dma_map_submit_release(dma_desc_t* desc)\n{\n  dma_map_buffer(desc);\n  dma_submit(desc);\n  dma_unmap_buffer(desc);\n  dma_release_channel(desc);\n}\n\nint dma_get_channel_status(dma_desc_t* desc)\n{\n  return desc->status;\n}\n"
+}

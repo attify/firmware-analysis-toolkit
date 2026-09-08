@@ -1,0 +1,17 @@
+{
+  "schema_version": "crypto-reuse-cluster/v1",
+  "summary_fields_present": true,
+  "confidence": "probable",
+  "cluster_count": 1,
+  "first_cluster": {
+    "artifact_type": "vendor-RSA-blob",
+    "confidence": "context-only",
+    "candidate_classifications": [
+      "governing-updater",
+      "helper-only"
+    ],
+    "governing_path_hits": [
+      "/sbin/slpupgrade"
+    ]
+  }
+}

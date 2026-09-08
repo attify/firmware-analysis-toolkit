@@ -1,0 +1,48 @@
+{
+  "id": "httpd-cross-channel",
+  "kind": "binary",
+  "edges": [
+    { "kind": "WritesChannel", "from": 0, "to": 1 },
+    { "kind": "ReadsChannel", "from": 1, "to": 2 },
+    { "kind": "DefUse", "from": 2, "to": 3 }
+  ],
+  "nodes": [
+    {
+      "kind": "Source",
+      "label": "httpd.apply.cgi.machine_name",
+      "attrs": {
+        "call_name": "websGetVarN",
+        "arg0": "machine_name",
+        "slot_name": "ret",
+        "slot_index": "-1"
+      }
+    },
+    {
+      "kind": "StateChannel",
+      "label": "nvram:machine_name",
+      "attrs": {
+        "channel_kind": "nvram",
+        "channel_key": "machine_name"
+      }
+    },
+    {
+      "kind": "Source",
+      "label": "rc.nvram_get(\"machine_name\").ret",
+      "attrs": {
+        "call_name": "nvram_get",
+        "arg0": "machine_name",
+        "slot_name": "ret",
+        "slot_index": "-1"
+      }
+    },
+    {
+      "kind": "SinkSlot",
+      "label": "system.arg0",
+      "attrs": {
+        "sink_name": "system",
+        "slot_name": "arg0",
+        "slot_index": "0"
+      }
+    }
+  ]
+}

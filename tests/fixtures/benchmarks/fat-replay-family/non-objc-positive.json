@@ -1,0 +1,22 @@
+{
+  "id": "non-objc-positive",
+  "kind": "positive",
+  "family": "bounds-size-arithmetic",
+  "language": "cxx",
+  "file_name": "buffer_upload.cpp",
+  "compile_args": [
+    "clang++",
+    "-x",
+    "c++",
+    "-std=c++17"
+  ],
+  "reference_symbols": [
+    "referenceBufferUpload"
+  ],
+  "surface_candidate": "replay_buffer_copy",
+  "variant_candidate": "replay_buffer_neighbor",
+  "baseline_candidates": [
+    "replay_buffer_copy"
+  ],
+  "source": "unsigned long MakeBuffer(unsigned long x) { return x; }\nvoid copyBytes(unsigned long, unsigned long) {}\nvoid saturateStride(unsigned long) {}\n\nvoid referenceBufferUpload(unsigned long len, unsigned long pitch)\n{\n  auto buffer = MakeBuffer(pitch);\n  copyBytes(buffer, len);\n  saturateStride(pitch);\n}\n\nvoid replay_buffer_copy(unsigned long len, unsigned long pitch)\n{\n  auto buffer = MakeBuffer(pitch);\n  copyBytes(buffer, len);\n  saturateStride(pitch);\n}\n\nvoid replay_buffer_neighbor(unsigned long len, unsigned long pitch)\n{\n  auto buffer = MakeBuffer(pitch);\n  copyBytes(buffer, len);\n  saturateStride(pitch);\n}\n\nvoid replay_copy_only(unsigned long len)\n{\n  copyBytes(len, len);\n}\n"
+}

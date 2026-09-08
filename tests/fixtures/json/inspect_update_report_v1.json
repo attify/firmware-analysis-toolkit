@@ -1,0 +1,9 @@
+{
+  "schema_version": "inspect-update-report/v1",
+  "summary_fields_present": true,
+  "confidence": "high",
+  "envelope_schema_version": "envelope-analysis/v1",
+  "trust_path_schema_version": "trust-path-analysis/v1",
+  "crypto_census_present": true,
+  "governing_binary_crypto_present": true
+}

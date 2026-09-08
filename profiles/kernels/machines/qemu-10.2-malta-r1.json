@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "id": "mch-qemu-10-2-malta-r1",
+  "qemu_version": "10.2.2",
+  "machine": "malta",
+  "cpu": "4Kc",
+  "console": "ttyS0",
+  "classes": ["mips32-o32-le-r1-page4k", "mips32-o32-be-r1-page4k"],
+  "capability_tier": "fixture-validated"
+}

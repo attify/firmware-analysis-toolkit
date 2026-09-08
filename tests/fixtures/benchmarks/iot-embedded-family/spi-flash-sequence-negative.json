@@ -1,0 +1,18 @@
+{
+  "id": "spi-flash-sequence-negative",
+  "kind": "negative",
+  "family": "gpu-protocol-order-lifecycle",
+  "language": "c",
+  "file_name": "spi_flash_negative.c",
+  "compile_args": [
+    "clang",
+    "-x",
+    "c",
+    "-std=c11"
+  ],
+  "reference_symbols": [
+    "spi_flash_erase_write"
+  ],
+  "surface_candidate": "spi_get_jedec_id",
+  "source": "typedef unsigned int uint32_t;\ntypedef unsigned long size_t;\n\ntypedef struct { int cs_pin; int bus; } spi_dev_t;\n\nvoid spi_acquire_bus(spi_dev_t* dev) { (void)dev; }\nvoid spi_release_bus(spi_dev_t* dev) { (void)dev; }\nvoid spi_flash_cmd_erase(spi_dev_t* dev, uint32_t addr) { (void)dev; (void)addr; }\nvoid spi_flash_cmd_write(spi_dev_t* dev, uint32_t addr, const void* data, size_t len) { (void)dev; (void)addr; (void)data; (void)len; }\nvoid spi_flash_wait_ready(spi_dev_t* dev) { (void)dev; }\n\nvoid spi_flash_erase_write(spi_dev_t* dev, uint32_t addr, const void* data, size_t len)\n{\n  spi_acquire_bus(dev);\n  spi_flash_cmd_erase(dev, addr);\n  spi_flash_wait_ready(dev);\n  spi_flash_cmd_write(dev, addr, data, len);\n  spi_release_bus(dev);\n}\n\nint spi_get_jedec_id(spi_dev_t* dev)\n{\n  return dev->bus;\n}\n"
+}

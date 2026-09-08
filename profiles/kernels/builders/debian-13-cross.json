@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0",
+  "id": "kbi-911de99cff7bbb4a",
+  "image": "localhost/fat-kernel-builder@sha256:32067fcfd49030bab6fbe36633a789ffd97ab19a1fbe00b616a927d499612ff6",
+  "manifest_digest": "sha256:32067fcfd49030bab6fbe36633a789ffd97ab19a1fbe00b616a927d499612ff6",
+  "base_image": "docker.io/library/debian:13-slim@sha256:38a76d01668772e381ad2826d876627c89e7133e2f8a0f5d567306798b0f2a16",
+  "base_manifest_digest": "sha256:38a76d01668772e381ad2826d876627c89e7133e2f8a0f5d567306798b0f2a16",
+  "build_timestamp": 1767225600,
+  "packages": [
+    { "name": "bc", "version": "1.07.1-4" },
+    { "name": "bison", "version": "2:3.8.2+dfsg-1+b2" },
+    { "name": "build-essential", "version": "12.12" },
+    { "name": "cpio", "version": "2.15+dfsg-2" },
+    { "name": "dwarves", "version": "1.30-1" },
+    { "name": "flex", "version": "2.6.4-8.2+b4" },
+    { "name": "gcc-arm-linux-gnueabi", "version": "4:14.2.0-1" },
+    { "name": "gcc-mips-linux-gnu", "version": "4:14.2.0-1" },
+    { "name": "gcc-mipsel-linux-gnu", "version": "4:14.2.0-1" },
+    { "name": "jq", "version": "1.7.1-6+deb13u3" },
+    { "name": "libelf-dev", "version": "0.192-4" },
+    { "name": "libc6-dev-armel-cross", "version": "2.41-11cross1" },
+    { "name": "libc6-dev-mips-cross", "version": "2.40-5cross1" },
+    { "name": "libc6-dev-mipsel-cross", "version": "2.40-5cross1" },
+    { "name": "libssl-dev", "version": "3.5.6-1~deb13u2" },
+    { "name": "make", "version": "4.4.1-2" },
+    { "name": "xz-utils", "version": "5.8.1-1+deb13u1" }
+  ]
+}

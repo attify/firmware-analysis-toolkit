@@ -1,0 +1,98 @@
+# FAT Core Taint Models
+#
+# The only models FAT compiles in. Each entry is a function whose argument
+# semantics are fixed by a published specification — ISO C, POSIX, or the
+# FastCGI specification — so the model holds for any binary that links the
+# function, independent of vendor, product, or firmware family.
+#
+# What is deliberately NOT here: functions whose taint role is a convention
+# rather than a contract. `nvram_get`, `xmldbc_get`, `websGetVar`, `getcfg`,
+# `cgi_get` and friends are real symbols and FAT still reports observing them,
+# but "this is a config read whose result is attacker-influenced" is a claim
+# about a particular platform's implementation, not something the name proves.
+# Those models are supplied through an explicit external profile.
+#
+# Adding an entry here requires: a citable specification for the argument
+# position, and a test asserting the semantics it claims.
+
+name: core
+description: Models specified by ISO C, POSIX, or FastCGI
+
+sources:
+  primary:
+    - name: getenv
+      note: >
+        POSIX getenv(3). Under CGI (RFC 3875) the request line, headers and
+        client address reach the program as environment variables, so the
+        returned string is request-controlled.
+    - name: read
+      note: >
+        POSIX read(2). Under CGI the request body arrives on stdin, so bytes
+        read from descriptor 0 are request-controlled.
+    - name: FCGX_GetParam
+      note: >
+        FastCGI specification: returns a request parameter from the FCGI_PARAMS
+        stream, which carries the same CGI meta-variables.
+
+sinks:
+  - name: system
+    category: command-exec
+    arg: 0
+    note: >
+      ISO C system(). Argument 0 is passed to the command interpreter, so a
+      tainted argument is command injection.
+  - name: popen
+    category: command-exec
+    arg: 0
+    note: >
+      POSIX popen(3). Argument 0 is passed to the shell exactly as system()
+      does.
+  - name: execl
+    category: command-exec
+    arg: 0
+    note: POSIX execl(3). Argument 0 is the pathname executed.
+  - name: execlp
+    category: command-exec
+    arg: 0
+    note: >
+      POSIX execlp(3). Argument 0 is the file executed, resolved against PATH,
+      so a tainted argument selects the program.
+  - name: execv
+    category: command-exec
+    arg: 0
+    note: POSIX execv(3). Argument 0 is the pathname executed.
+  - name: execve
+    category: command-exec
+    arg: 0
+    note: POSIX execve(2). Argument 0 is the pathname executed.
+  - name: execvp
+    category: command-exec
+    arg: 0
+    note: POSIX execvp(3). Argument 0 is the file executed, resolved against PATH.
+  - name: sprintf
+    category: string-overflow
+    arg: 0
+    note: >
+      ISO C sprintf(). Argument 0 is the destination buffer and the function is
+      unbounded, so a tainted length overflows it.
+  - name: strcpy
+    category: string-overflow
+    arg: 0
+    note: ISO C strcpy(). Argument 0 is an unbounded destination buffer.
+  - name: strcat
+    category: string-overflow
+    arg: 0
+    note: ISO C strcat(). Argument 0 is an unbounded destination buffer.
+
+# A blocker is a claim that taint stops, which suppresses a finding — so the
+# bar is the same as for a sink, applied in the more dangerous direction. An
+# entry omitted here costs a false positive; an entry wrongly present costs a
+# missed flow. `md5`, `sha256`, `SHA1` and `DES_ecb_encrypt` were dropped for
+# that reason: those names are a convention or an OpenSSL spelling, and nothing
+# about the name proves the function digests its input. Supply them through an
+# external profile when analysing a target where they do.
+blockers:
+  - name: crypt
+    note: >
+      POSIX crypt(3) returns a fixed-alphabet hash of its input, so the result
+      no longer carries the input's structure.

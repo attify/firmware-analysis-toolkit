@@ -1,0 +1,10 @@
+pub const ENVELOPE_ANALYSIS_V1: &str = "envelope-analysis/v1";
+pub const IDENTIFY_REPORT_V1: &str = "identify-report/v1";
+pub const TRUST_PATH_ANALYSIS_V1: &str = "trust-path-analysis/v1";
+pub const CRYPTO_ARTIFACT_ANALYSIS_V1: &str = "crypto-artifact-analysis/v1";
+pub const CRYPTO_REUSE_CLUSTER_V1: &str = "crypto-reuse-cluster/v1";
+pub const INSPECT_UPDATE_REPORT_V1: &str = "inspect-update-report/v1";
+pub const MCU_INSPECTION_REPORT_V1: &str = "mcu-inspection/v1";
+pub const MCU_PERIPHERAL_SURFACE_REPORT_V1: &str = "mcu-peripheral-surface/v1";
+pub const MCU_ISR_STATE_REPORT_V1: &str = "mcu-isr-state/v1";
+pub const SEARCH_REPORT_V2: &str = "search-report/v2";

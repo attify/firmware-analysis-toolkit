@@ -1,0 +1,22 @@
+{
+  "id": "mqtt-session-teardown-positive",
+  "kind": "positive",
+  "family": "lifetime-ownership",
+  "language": "c",
+  "file_name": "mqtt_session.c",
+  "compile_args": [
+    "clang",
+    "-x",
+    "c",
+    "-std=c11"
+  ],
+  "reference_symbols": [
+    "mqtt_session_destroy"
+  ],
+  "surface_candidate": "mqtt_session_destroy_variant",
+  "variant_candidate": "mqtt_session_destroy_neighbor",
+  "baseline_candidates": [
+    "mqtt_session_destroy_variant"
+  ],
+  "source": "typedef struct { int fd; int state; void* user_data; } mqtt_session_t;\ntypedef struct { int topic_id; void (*callback)(void*); } mqtt_subscription_t;\n\nvoid mqtt_unsubscribe_all(mqtt_session_t* s) { (void)s; }\nvoid mqtt_close_socket(int fd) { (void)fd; }\nvoid mqtt_free_session(mqtt_session_t* s) { (void)s; }\nvoid mqtt_notify_disconnect(mqtt_session_t* s) { (void)s; }\nvoid mqtt_release_observer(mqtt_session_t* s) { (void)s; }\n\nvoid mqtt_session_destroy(mqtt_session_t* session)\n{\n  mqtt_release_observer(session);\n  mqtt_unsubscribe_all(session);\n  mqtt_notify_disconnect(session);\n  mqtt_close_socket(session->fd);\n  mqtt_free_session(session);\n}\n\nvoid mqtt_session_destroy_variant(mqtt_session_t* session)\n{\n  mqtt_release_observer(session);\n  mqtt_unsubscribe_all(session);\n  mqtt_notify_disconnect(session);\n  mqtt_close_socket(session->fd);\n  mqtt_free_session(session);\n}\n\nvoid mqtt_session_destroy_neighbor(mqtt_session_t* session)\n{\n  mqtt_release_observer(session);\n  mqtt_unsubscribe_all(session);\n  mqtt_close_socket(session->fd);\n  mqtt_free_session(session);\n}\n"
+}

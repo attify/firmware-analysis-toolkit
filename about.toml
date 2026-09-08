@@ -1,0 +1,58 @@
+accepted = [
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "CC0-1.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+]
+
+[private]
+ignore = true
+
+# First-party workspace only; this does not admit FSL dependencies generally.
+
+["fat-toolkit-analyze"]
+accepted = ["FSL-1.1-ALv2"]
+
+["fat-toolkit-core"]
+accepted = ["FSL-1.1-ALv2"]
+
+["fat-toolkit-family"]
+accepted = ["FSL-1.1-ALv2"]
+
+["fat-toolkit-plugin-api"]
+accepted = ["FSL-1.1-ALv2"]
+
+["firmware-analysis-toolkit"]
+accepted = ["FSL-1.1-ALv2"]
+
+["fat-toolkit-backend"]
+accepted = ["FSL-1.1-ALv2"]
+
+["fat-toolkit-bootloader"]
+accepted = ["FSL-1.1-ALv2"]
+
+["fat-toolkit-extract"]
+accepted = ["FSL-1.1-ALv2"]
+
+["fat-toolkit-emulate"]
+accepted = ["FSL-1.1-ALv2"]
+
+["fat-toolkit-package"]
+accepted = ["FSL-1.1-ALv2"]
+
+["fat-toolkit-plugin-host"]
+accepted = ["FSL-1.1-ALv2"]
+
+["fat-toolkit-query"]
+accepted = ["FSL-1.1-ALv2"]
+
+["fat-toolkit-taint"]
+accepted = ["FSL-1.1-ALv2"]

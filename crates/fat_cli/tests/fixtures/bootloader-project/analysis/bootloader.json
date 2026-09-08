@@ -1,0 +1,16 @@
+{
+  "family": "u-boot",
+  "version_hint": "U-Boot 2024.01",
+  "env_variables": [
+    {
+      "key": "sig_check",
+      "value": "no",
+      "source": "Imported"
+    }
+  ],
+  "flow_hints": [],
+  "secure_boot_hints": [],
+  "findings": [
+    "BOOT-SIG-BYPASS"
+  ]
+}

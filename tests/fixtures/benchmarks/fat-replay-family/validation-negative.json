@@ -1,0 +1,18 @@
+{
+  "id": "validation-negative",
+  "kind": "negative",
+  "family": "validation-policy",
+  "language": "cxx",
+  "file_name": "permission_override_negative.cpp",
+  "compile_args": [
+    "clang++",
+    "-x",
+    "c++",
+    "-std=c++17"
+  ],
+  "reference_symbols": [
+    "permissionCheckedOverride"
+  ],
+  "surface_candidate": "denyOnlyShadow",
+  "source": "bool hasPermission(int) { return true; }\nvoid enforcePermission(int) {}\nvoid logDenied(int) {}\n\nvoid permissionCheckedOverride(int uid)\n{\n  if (!hasPermission(uid)) {\n    logDenied(uid);\n    return;\n  }\n  enforcePermission(uid);\n}\n\nvoid denyOnlyShadow(int uid)\n{\n  logDenied(uid);\n}\n\nvoid copyOnlyNoise(int uid)\n{\n  enforcePermission(uid);\n}\n"
+}

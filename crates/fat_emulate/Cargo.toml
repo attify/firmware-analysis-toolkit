@@ -1,0 +1,43 @@
+[package]
+name = "fat-toolkit-emulate"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+readme.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Emulation orchestration (preflight, plan, session) for FAT"
+publish = false
+
+[lib]
+name = "fat_emulate"
+path = "src/lib.rs"
+
+[dependencies]
+fat-backend = { version = "=2.0.0-alpha.1", path = "../fat_backend", package = "fat-toolkit-backend" }
+fat-family = { version = "=2.0.0-alpha.1", path = "../fat_family", package = "fat-toolkit-family" }
+fat-core = { version = "=2.0.0-alpha.1", path = "../fat_core", package = "fat-toolkit-core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+sha2 = "0.10"
+tempfile = "3"
+
+[[test]]
+name = "test_emulation_session"
+path = "../../tests/integration/test_emulation_session.rs"
+
+[[test]]
+name = "strategy_candidates"
+path = "tests/strategy_candidates.rs"
+
+[[test]]
+name = "active_run_lifecycle"
+path = "tests/active_run_lifecycle.rs"
+
+[lints]
+workspace = true

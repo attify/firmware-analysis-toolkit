@@ -1,0 +1,56 @@
+# FAT projects and runtime data
+# `fat new` creates workspaces under .fat-projects/ by default.
+.fat-projects/
+.fat/
+*.db
+unblob.log
+
+# Rust build output
+target/
+
+# Python bytecode and native extensions
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Python packaging output
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Python virtual environments
+.venv/
+venv/
+
+# Python test, lint, and type-check caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Generated documentation (MkDocs)
+/site/
+
+# Local development workspaces and temporary files
+# Put additional personal ignore rules in .git/info/exclude.
+.worktrees/
+.tmp/
+
+# Operating system metadata
+.DS_Store
+
+# Internal documentation belongs in the private internal-documentation repository.
+# Release tooling under /private/ is tracked here on purpose; do not ignore it.
+/docs/design/
+/docs/deep-research/
+/docs/plans/
+/docs/research/
+/docs/validation/
+/investigations/
+
+# Local coding-agent state; shared instructions live in AGENTS.md.
+CLAUDE.local.md
+.claude/*
+!.claude/settings.json

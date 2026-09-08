@@ -1,0 +1,43 @@
+pub mod artifacts;
+pub mod benchmark;
+pub mod bootloader;
+pub mod data_dir;
+pub mod data_manifest;
+pub mod database;
+pub mod debug;
+pub mod decompile;
+pub mod diagnostics;
+pub mod diff;
+pub mod discovery;
+pub mod experiment;
+pub mod experiment_selector;
+pub mod finding;
+pub mod fingerprint;
+pub mod firmware_diff;
+pub mod ids;
+pub mod inspection;
+pub mod inventory;
+pub mod kernel_system;
+pub mod layout;
+pub mod mcu_inspection;
+pub mod readiness;
+pub mod recipes;
+pub mod rehosting;
+pub mod rehosting_pack;
+pub mod rehosting_pack_match;
+pub mod rehosting_pack_overlay;
+pub mod rehosting_policy;
+pub mod rehosting_recipe;
+pub mod runs;
+pub mod runtime_store;
+pub mod services;
+pub mod sessions;
+pub mod staging;
+pub mod target_model;
+pub mod targets;
+pub mod zip_preflight;
+pub mod project {
+    include!("project.rs");
+
+    pub use crate::inventory::Architecture;
+}

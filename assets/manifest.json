@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "policy": "Opaque binaries are excluded unless redistribution and corresponding-source obligations are documented.",
+  "assets": [
+    {
+      "path": "crates/fat_cli/assets/fat-init-trampoline.mipsel",
+      "source": "scripts/fat-init-trampoline-mipsel.S",
+      "revision": "workspace source at the public release commit",
+      "license_spdx": "FSL-1.1-ALv2",
+      "sha256": "d254a2bf2079f8729a8ee59442c752b8e70c99abee9099f45c6defb10e932b7f",
+      "acquisition_or_build": "clang --target=mipsel-linux-none -march=mips1 -mabi=32 -fno-pic -fuse-ld=lld -nostdlib -static -Wl,--build-id=none,-e,_start,-Ttext=0x00400000,-z,max-page-size=4096 -o fat-init-trampoline.mipsel scripts/fat-init-trampoline-mipsel.S; llvm-strip --strip-all fat-init-trampoline.mipsel",
+      "redistribution_status": "redistributable with corresponding workspace source",
+      "classification": "FAT-owned runtime helper"
+    }
+  ],
+  "external_requirements": [
+    {
+      "id": "firmae-mipsel-linux-4",
+      "kind": "emulation-kernel",
+      "filename": "vmlinux.mipsel.4",
+      "status": "not-redistributed",
+      "configuration": "FAT_SYSTEM_KERNEL_DIR",
+      "sha256": "aeaa2a3cc13af5fe8f5cc4dc66c756b75051b972937862656a6e39e936da2d2f",
+      "provenance_status": "observed in a local FirmAE installation; not tracked by the upstream repository",
+      "license_status": "unresolved; do not redistribute",
+      "classification": "optional experimental runtime asset"
+    },
+    {
+      "id": "firmae-mipseb-linux-4",
+      "kind": "emulation-kernel",
+      "filename": "vmlinux.mipseb.4",
+      "status": "not-redistributed",
+      "configuration": "FAT_SYSTEM_KERNEL_DIR",
+      "sha256": "ceea3281f76f8f37711352e0982df9e06ef1169d171ba7802ea07bf7c9173fd3",
+      "provenance_status": "observed in a local FirmAE installation; not tracked by the upstream repository",
+      "license_status": "unresolved; do not redistribute",
+      "classification": "optional experimental runtime asset"
+    },
+    {
+      "id": "user-supplied-u-boot",
+      "kind": "u-boot-image",
+      "status": "not-redistributed",
+      "configuration": "FAT_UBOOT_ASSET",
+      "classification": "optional experimental runtime asset"
+    }
+  ]
+}

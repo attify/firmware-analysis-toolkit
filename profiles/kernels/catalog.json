@@ -1,0 +1,105 @@
+[
+  {
+    "profile_id": "fat-linux-6.18.45-mips32-o32-le-r1-page4k",
+    "architecture": "mipsel",
+    "family_hint": "linux-",
+    "tier": 0,
+    "image_hint": "vmlinux",
+    "support_tier": "experimental",
+    "compatibility_note": "FAT-maintained Linux 6.18.45 artifact; requires explicit target class evidence, experimental consent, verified installation, and the pinned QEMU 11.0.2 Malta/24Kf machine profile",
+    "compatibility_class": "mips32-o32-le-r1-page4k",
+    "managed_bundle_id": "kab-b3c764c44c2f5aa3",
+    "artifact_digest": "sha256:56bba7bb219b82e46bdf541e9a4dc3fd0f89663c88a34649af7ea340a0e1f591",
+    "promotion_state": "not-promoted",
+    "required_machine_profile": "mch-qemu-11-0-2-malta-r2",
+    "compatible_machine_profiles": [
+      "mch-qemu-11-0-2-malta-r2",
+      "mch-qemu-11-0-2-malta-r1",
+      "mch-qemu-10-2-malta-r2",
+      "mch-qemu-10-2-malta-r1"
+    ]
+  },
+  {
+    "profile_id": "fat-linux-6.18.45-mips32-o32-be-r1-page4k",
+    "architecture": "mips",
+    "family_hint": "linux-",
+    "tier": 0,
+    "image_hint": "vmlinux",
+    "support_tier": "experimental",
+    "compatibility_note": "FAT-maintained Linux 6.18.45 artifact; requires explicit target class evidence, experimental consent, verified installation, and the pinned QEMU 11.0.2 Malta/24Kf machine profile",
+    "compatibility_class": "mips32-o32-be-r1-page4k",
+    "managed_bundle_id": "kab-8c102b4a0a50d2f2",
+    "artifact_digest": "sha256:2e3e880c515942af9cb6c4200a0acb823f94a2254e48257c2eba087db56a8624",
+    "promotion_state": "not-promoted",
+    "required_machine_profile": "mch-qemu-11-0-2-malta-r2",
+    "compatible_machine_profiles": [
+      "mch-qemu-11-0-2-malta-r2",
+      "mch-qemu-11-0-2-malta-r1",
+      "mch-qemu-10-2-malta-r2",
+      "mch-qemu-10-2-malta-r1"
+    ]
+  },
+  {
+    "profile_id": "fat-linux-6.18.45-arm32-eabi-le-v7-page4k",
+    "architecture": "armel",
+    "family_hint": "linux-",
+    "tier": 0,
+    "image_hint": "zImage",
+    "support_tier": "experimental",
+    "compatibility_note": "FAT-maintained Linux 6.18.45 artifact; requires explicit target class evidence, experimental consent, verified installation, and the pinned QEMU 11.0.2 virt-11.0/cortex-a15 machine profile",
+    "compatibility_class": "arm32-eabi-le-v7-page4k",
+    "managed_bundle_id": "kab-8f19fe45a28522e4",
+    "artifact_digest": "sha256:328ad12f7e1c97e1ccd4321e22c55f35b761a13437b0eb4e26121d6937ea780e",
+    "promotion_state": "not-promoted",
+    "required_machine_profile": "mch-qemu-11-0-2-virt-armv7",
+    "compatible_machine_profiles": [
+      "mch-qemu-11-0-2-virt-armv7",
+      "mch-qemu-10-2-virt-armv7"
+    ]
+  },
+  {
+    "profile_id": "armel-router-tier1",
+    "architecture": "armel",
+    "family_hint": "linux-router-arm",
+    "tier": 1,
+    "image_hint": "zImage.armel",
+    "support_tier": "external-required",
+    "compatibility_note": "requires an externally acquired compatible ARM kernel; no kernel is redistributed"
+  },
+  {
+    "profile_id": "armel-router-tier2-generic",
+    "architecture": "armel",
+    "family_hint": "linux-",
+    "tier": 2,
+    "image_hint": "zImage.armel",
+    "support_tier": "external-required",
+    "compatibility_note": "requires an externally acquired compatible ARM kernel; no kernel is redistributed"
+  },
+  {
+    "profile_id": "mipsel-router-tier1",
+    "architecture": "mipsel",
+    "family_hint": "linux-router-mips",
+    "tier": 1,
+    "image_hint": "vmlinux.mipsel.4",
+    "support_tier": "external-required",
+    "compatibility_note": "requires an externally acquired compatible MIPSEL kernel; no kernel is redistributed"
+  },
+  {
+    "profile_id": "mipseb-router-tier1",
+    "architecture": "mips",
+    "family_hint": "linux-router-mips",
+    "tier": 1,
+    "image_hint": "vmlinux.mipseb.4",
+    "support_tier": "external-required",
+    "compatibility_note": "requires an externally acquired compatible MIPSEB kernel; no kernel is redistributed"
+  },
+  {
+    "profile_id": "mips-router-tier2-generic",
+    "architecture": "mipsel",
+    "family_hint": "linux-",
+    "tier": 2,
+    "image_hint": "vmlinux.mipsel.4",
+    "support_tier": "external-required",
+    "compatibility_note": "requires an externally acquired compatible MIPSEL kernel; no kernel is redistributed"
+  }
+]

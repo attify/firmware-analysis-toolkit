@@ -1,0 +1,495 @@
+[package]
+name = "firmware-analysis-toolkit"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+readme.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "FAT — command-line firmware analysis toolkit"
+publish = false
+
+[dependencies]
+clap = { version = "4", features = ["derive", "color"] }
+fat_analyze = { version = "=2.0.0-alpha.1", path = "../fat_analyze", package = "fat-toolkit-analyze" }
+fat_backend = { version = "=2.0.0-alpha.1", path = "../fat_backend", package = "fat-toolkit-backend" }
+fat_bootloader = { version = "=2.0.0-alpha.1", path = "../fat_bootloader", package = "fat-toolkit-bootloader" }
+fat_family = { version = "=2.0.0-alpha.1", path = "../fat_family", package = "fat-toolkit-family" }
+fat_extract = { version = "=2.0.0-alpha.1", path = "../fat_extract", package = "fat-toolkit-extract" }
+fat_package = { version = "=2.0.0-alpha.1", path = "../fat_package", package = "fat-toolkit-package" }
+fat_core = { version = "=2.0.0-alpha.1", path = "../fat_core", package = "fat-toolkit-core" }
+fat_emulate = { version = "=2.0.0-alpha.1", path = "../fat_emulate", package = "fat-toolkit-emulate" }
+fat_taint = { version = "=2.0.0-alpha.1", path = "../fat_taint", package = "fat-toolkit-taint" }
+fat_plugin_api = { version = "=2.0.0-alpha.1", path = "../fat_plugin_api", package = "fat-toolkit-plugin-api" }
+fat_plugin_host = { version = "=2.0.0-alpha.1", path = "../fat_plugin_host", package = "fat-toolkit-plugin-host" }
+fat_query = { version = "=2.0.0-alpha.1", path = "../fat_query", package = "fat-toolkit-query" }
+r2pipe = "0.8.0"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+sha2 = "0.10"
+tempfile = "3"
+walkdir = "2"
+lzma-rs = "0.3"
+xz2 = "0.1"
+owo-colors = "4"
+zip = "2"
+tar = "0.4"
+indicatif = { version = "0.17", default-features = false }
+libc = "0.2"
+
+[dev-dependencies]
+crc32fast = "1"
+serde_yaml = "0.9"
+# Integration tests under tests/integration/ are registered as fat_cli test
+# targets, so the fixture loaders they use are enabled here rather than in
+# fat_query's default features.
+fat_query = { version = "=2.0.0-alpha.1", path = "../fat_query", package = "fat-toolkit-query", features = ["test-fixtures"] }
+flate2 = "1"
+tempfile = "3"
+zip = "2"
+
+[[bin]]
+name = "fat"
+path = "src/main.rs"
+
+[[test]]
+name = "test_kernel_profile_consistency"
+path = "../../tests/integration/test_kernel_profile_consistency.rs"
+
+[[test]]
+name = "test_cli_bootstrap"
+path = "../../tests/integration/test_cli_bootstrap.rs"
+
+[[test]]
+name = "test_taint_profile_cli"
+path = "../../tests/integration/test_taint_profile_cli.rs"
+
+[[test]]
+name = "test_emulate_list_cli"
+path = "../../tests/integration/test_emulate_list_cli.rs"
+
+[[test]]
+name = "test_emulate_gc_cli"
+path = "../../tests/integration/test_emulate_gc_cli.rs"
+
+[[test]]
+name = "test_emulate_caps_cli"
+path = "../../tests/integration/test_emulate_caps_cli.rs"
+
+[[test]]
+name = "test_identify_launcher_cli"
+path = "../../tests/integration/test_identify_launcher_cli.rs"
+
+[[test]]
+name = "test_identify_cli"
+path = "../../tests/integration/test_identify_cli.rs"
+
+[[test]]
+name = "test_inspect_handoff_cli"
+path = "../../tests/integration/test_inspect_handoff_cli.rs"
+
+[[test]]
+name = "test_inspect_envelope_cli"
+path = "../../tests/integration/test_inspect_envelope_cli.rs"
+
+[[test]]
+name = "test_inspect_update_cli"
+path = "../../tests/integration/test_inspect_update_cli.rs"
+
+[[test]]
+name = "test_alias_equivalence_cli"
+path = "../../tests/integration/test_alias_equivalence_cli.rs"
+
+[[test]]
+name = "test_inspect_elf_cli"
+path = "../../tests/integration/test_inspect_elf_cli.rs"
+
+[[test]]
+name = "test_inspect_mcu_cli"
+path = "../../tests/integration/test_inspect_mcu_cli.rs"
+
+[[test]]
+name = "test_inspect_peripheral_map_cli"
+path = "../../tests/integration/test_inspect_peripheral_map_cli.rs"
+
+[[test]]
+name = "test_inspect_isr_state_cli"
+path = "../../tests/integration/test_inspect_isr_state_cli.rs"
+
+[[test]]
+name = "test_inspect_svd_rank_cli"
+path = "../../tests/integration/test_inspect_svd_rank_cli.rs"
+
+[[test]]
+name = "test_bundle_reality_cli"
+path = "../../tests/integration/test_bundle_reality_cli.rs"
+
+[[test]]
+name = "test_runtime_plane_cli"
+path = "../../tests/integration/test_runtime_plane_cli.rs"
+
+[[test]]
+name = "test_trust_map_cli"
+path = "../../tests/integration/test_trust_map_cli.rs"
+
+[[test]]
+name = "test_crypto_extract_cli"
+path = "../../tests/integration/test_crypto_extract_cli.rs"
+
+[[test]]
+name = "test_signature_fit_cli"
+path = "../../tests/integration/test_signature_fit_cli.rs"
+
+[[test]]
+name = "test_crypto_census_cli"
+path = "../../tests/integration/test_crypto_census_cli.rs"
+
+[[test]]
+name = "test_json_contracts_cli"
+path = "../../tests/integration/test_json_contracts_cli.rs"
+
+[[test]]
+name = "test_sdk_trace_cli"
+path = "../../tests/integration/test_sdk_trace_cli.rs"
+
+[[test]]
+name = "test_diff_role_cli"
+path = "../../tests/integration/test_diff_role_cli.rs"
+
+[[test]]
+name = "test_preflight"
+path = "../../tests/integration/test_preflight.rs"
+
+[[test]]
+name = "test_extract_cli"
+path = "../../tests/integration/test_extract_cli.rs"
+
+[[test]]
+name = "test_carve_cli"
+path = "../../tests/integration/test_carve_cli.rs"
+
+[[test]]
+name = "test_bootloader_analysis"
+path = "../../tests/integration/test_bootloader_cli_analysis.rs"
+
+[[test]]
+name = "test_bootloader_handoff_cli"
+path = "../../tests/integration/test_bootloader_handoff_cli.rs"
+
+[[test]]
+name = "test_cli_runtime_core"
+path = "../../tests/integration/test_cli_runtime_core.rs"
+
+[[test]]
+name = "test_cli_timing"
+path = "../../tests/integration/test_cli_timing.rs"
+
+[[test]]
+name = "test_cli_project_records"
+path = "../../tests/integration/test_cli_project_records.rs"
+
+[[test]]
+name = "test_kernel_cli"
+path = "../../tests/integration/test_kernel_cli.rs"
+
+[[test]]
+name = "test_cli_phase1_runtime"
+path = "../../tests/integration/test_cli_phase1_runtime.rs"
+
+[[test]]
+name = "test_analyzer_triggers"
+path = "../../tests/integration/test_analyzer_triggers.rs"
+
+[[test]]
+name = "test_run_diff"
+path = "../../tests/integration/test_run_diff.rs"
+
+[[test]]
+name = "test_failed_launch_runtime"
+path = "../../tests/integration/test_failed_launch_runtime.rs"
+
+[[test]]
+name = "test_managed_linux_vm_runtime"
+path = "../../tests/integration/test_managed_linux_vm_runtime.rs"
+
+[[test]]
+name = "test_benchmark_cli"
+path = "../../tests/integration/test_benchmark_cli.rs"
+
+[[test]]
+name = "test_sink_discovery_cli"
+path = "../../tests/integration/test_sink_discovery_cli.rs"
+
+[[test]]
+name = "test_rehost_profiles_cli"
+path = "../../tests/integration/test_rehost_profiles_cli.rs"
+
+[[test]]
+name = "runtime_replay_family_benchmark"
+path = "../../tests/benchmarks/runtime_replay_family_benchmark.rs"
+
+[[test]]
+name = "android_discovery_benchmark"
+path = "../../tests/benchmarks/android_discovery_benchmark.rs"
+
+[[test]]
+name = "iot_embedded_replay_benchmark"
+path = "../../tests/benchmarks/iot_embedded_replay_benchmark.rs"
+
+[[test]]
+name = "test_taint_benchmark_cli"
+path = "../../tests/integration/test_taint_benchmark_cli.rs"
+
+[[test]]
+name = "test_source_map_cli"
+path = "../../tests/integration/test_source_map_cli.rs"
+
+[[test]]
+name = "test_startup_map_cli"
+path = "../../tests/integration/test_startup_map_cli.rs"
+
+[[test]]
+name = "test_decompile_mcu_cli"
+path = "../../tests/integration/test_decompile_mcu_cli.rs"
+
+[[test]]
+name = "test_r2_triage_mcu_cli"
+path = "../../tests/integration/test_r2_triage_mcu_cli.rs"
+
+[[test]]
+name = "test_xref_search_cli"
+path = "../../tests/integration/test_xref_search_cli.rs"
+
+[[test]]
+name = "test_search_cli"
+path = "../../tests/integration/test_search_cli.rs"
+
+[[test]]
+name = "test_handler_table_cli"
+path = "../../tests/integration/test_handler_table_cli.rs"
+
+[[test]]
+name = "test_query_ir"
+path = "../../tests/integration/test_query_ir.rs"
+
+[[test]]
+name = "test_query_adapters"
+path = "../../tests/integration/test_query_adapters.rs"
+
+[[test]]
+name = "test_query_planner"
+path = "../../tests/integration/test_query_planner.rs"
+
+[[test]]
+name = "test_query_target_detection"
+path = "../../tests/integration/test_query_target_detection.rs"
+
+[[test]]
+name = "test_query_adapter_registry"
+path = "../../tests/integration/test_query_adapter_registry.rs"
+
+[[test]]
+name = "test_tu_spec_resolver"
+path = "../../tests/integration/test_tu_spec_resolver.rs"
+
+[[test]]
+name = "test_taint_query_cli"
+path = "../../tests/integration/test_taint_query_cli.rs"
+
+[[test]]
+name = "test_source_adapter_clang_facts"
+path = "../../tests/integration/test_source_adapter_clang_facts.rs"
+
+[[test]]
+name = "test_slice_expander"
+path = "../../tests/integration/test_slice_expander.rs"
+
+[[test]]
+name = "test_derived_facts"
+path = "../../tests/integration/test_derived_facts.rs"
+
+[[test]]
+name = "test_source_fact_store"
+path = "../../tests/integration/test_source_fact_store.rs"
+
+[[test]]
+name = "test_fusion"
+path = "../../tests/integration/test_fusion.rs"
+
+[[test]]
+name = "test_roll_resolver"
+path = "../../tests/integration/test_roll_resolver.rs"
+
+[[test]]
+name = "test_variant_hunter"
+path = "../../tests/integration/test_variant_hunter.rs"
+
+[[test]]
+name = "test_size_stride_replay_query"
+path = "../../tests/integration/test_size_stride_replay_query.rs"
+
+[[test]]
+name = "test_invariant_result_model"
+path = "../../tests/integration/test_invariant_result_model.rs"
+
+[[test]]
+name = "test_discovery_leads"
+path = "../../tests/integration/test_discovery_leads.rs"
+
+[[test]]
+name = "test_discovery_cli"
+path = "../../tests/integration/test_discovery_cli.rs"
+
+[[test]]
+name = "test_android_harness_handoff"
+path = "../../tests/integration/test_android_harness_handoff.rs"
+
+[[test]]
+name = "test_android_runtime_lanes"
+path = "../../tests/integration/test_android_runtime_lanes.rs"
+
+[[test]]
+name = "test_android_discovery_cli"
+path = "../../tests/integration/test_android_discovery_cli.rs"
+
+[[test]]
+name = "test_android_family_router"
+path = "../../tests/integration/test_android_family_router.rs"
+
+[[test]]
+name = "test_android_family_webview"
+path = "../../tests/integration/test_android_family_webview.rs"
+
+[[test]]
+name = "test_android_family_capability_chain"
+path = "../../tests/integration/test_android_family_capability_chain.rs"
+
+[[test]]
+name = "test_android_family_binder_native"
+path = "../../tests/integration/test_android_family_binder_native.rs"
+
+[[test]]
+name = "test_android_family_ranking"
+path = "../../tests/integration/test_android_family_ranking.rs"
+
+[[test]]
+name = "test_invariant_query_cli"
+path = "../../tests/integration/test_invariant_query_cli.rs"
+
+[[test]]
+name = "test_invariant_query_source_cli"
+path = "../../tests/integration/test_invariant_query_source_cli.rs"
+
+[[test]]
+name = "test_patch_check_cli"
+path = "../../tests/integration/test_patch_check_cli.rs"
+
+[[test]]
+name = "test_chain_query_cli"
+path = "../../tests/integration/test_chain_query_cli.rs"
+
+[[test]]
+name = "test_verify_cli"
+path = "../../tests/integration/test_verify_cli.rs"
+
+[[test]]
+name = "test_help_detail_cli"
+path = "../../tests/integration/test_help_detail_cli.rs"
+
+[[test]]
+name = "test_color_output_cli"
+path = "../../tests/integration/test_color_output_cli.rs"
+
+
+[[test]]
+name = "test_bootloader_inspect"
+path = "../../tests/integration/test_bootloader_inspect.rs"
+
+[[test]]
+name = "test_bootloader_assist"
+path = "../../tests/integration/test_bootloader_assist.rs"
+
+[[test]]
+name = "test_bootloader_new"
+path = "../../tests/integration/test_bootloader_new.rs"
+
+[[test]]
+name = "test_bootloader_emulate"
+path = "../../tests/integration/test_bootloader_emulate.rs"
+
+[[test]]
+name = "test_bootloader_export_env"
+path = "../../tests/integration/test_bootloader_export_env.rs"
+
+[[test]]
+name = "test_emux_runtime"
+path = "../../tests/integration/test_emux_runtime.rs"
+
+[[test]]
+name = "test_emux_debug_plane"
+path = "../../tests/integration/test_emux_debug_plane.rs"
+
+[[test]]
+name = "test_discovery_queue"
+path = "../../tests/integration/test_discovery_queue.rs"
+
+[[test]]
+name = "test_discovery_harvesters"
+path = "../../tests/integration/test_discovery_harvesters.rs"
+
+[[test]]
+name = "test_discovery_execute"
+path = "../../tests/integration/test_discovery_execute.rs"
+
+[[test]]
+name = "test_discovery_triage"
+path = "../../tests/integration/test_discovery_triage.rs"
+
+[[test]]
+name = "test_discovery_benchmark_cli"
+path = "../../tests/integration/test_discovery_benchmark_cli.rs"
+
+[[test]]
+name = "test_state_queries"
+path = "../../tests/integration/test_state_queries.rs"
+
+[[test]]
+name = "test_hsm_cli"
+path = "../../tests/integration/test_hsm_cli.rs"
+
+[[test]]
+name = "test_data_cli"
+path = "../../tests/integration/test_data_cli.rs"
+
+[[test]]
+name = "test_installed_data_layout"
+path = "../../tests/integration/test_installed_data_layout.rs"
+
+[[test]]
+name = "test_rehosting_installed_smoke"
+path = "../../tests/integration/test_rehosting_installed_smoke.rs"
+
+[[test]]
+name = "test_firmware_diff_cli"
+path = "../../tests/integration/test_firmware_diff_cli.rs"
+
+[[test]]
+name = "test_relative_project_paths"
+path = "../../tests/integration/test_relative_project_paths.rs"
+
+[[test]]
+name = "test_shell_taint_cli"
+path = "../../tests/integration/test_shell_taint_cli.rs"
+
+[[test]]
+name = "test_taint_cross_state_profile_cli"
+path = "../../tests/integration/test_taint_cross_state_profile_cli.rs"
+
+[lints]
+workspace = true
+

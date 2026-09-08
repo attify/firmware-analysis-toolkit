@@ -1,0 +1,112 @@
+{
+  "bundle_version": "android-semantic/v1alpha1",
+  "target": {
+    "application_id": "com.example.chain",
+    "package_name": "com.example.chain",
+    "version_code": "5",
+    "version_name": "2.5",
+    "split_names": []
+  },
+  "extractor": {
+    "extractor_id": "fat-app-jadx-recon",
+    "extractor_version": "0.1.0",
+    "input_kind": "jadx-tree",
+    "generated_at_utc": "2026-04-06T12:00:00Z",
+    "degraded": false,
+    "notes": []
+  },
+  "facts": [
+    {
+      "fact_id": "fact-pending-intent-mutability",
+      "kind": "pending-intent.mutability",
+      "subject": "mutable",
+      "support_level": "Observed",
+      "provenance": [
+        {
+          "origin": "jadx",
+          "artifact": "sources/com/example/RelayReceiver.java"
+        }
+      ],
+      "attributes": {}
+    }
+  ],
+  "symbol_identities": [
+    {
+      "symbol_id": "sym-intent-relay",
+      "language": "java",
+      "kind": "method",
+      "qualified_name": "com.example.RelayReceiver.forwardIntent",
+      "descriptor": "(Landroid/content/Intent;)V",
+      "aliases": []
+    }
+  ],
+  "control_surfaces": [
+    {
+      "surface_id": "control-intent-relay",
+      "kind": "nested-intent-dispatch",
+      "entry_symbol": "sym-intent-relay",
+      "exported_component": "com.example.RelayReceiver",
+      "trigger": "notification-action",
+      "notes": []
+    },
+    {
+      "surface_id": "control-endpoint-template",
+      "kind": "endpoint-template",
+      "trigger": "/internal/devices/{id}/arm",
+      "notes": [
+        "path composed after delegated launch"
+      ]
+    }
+  ],
+  "transport_surfaces": [
+    {
+      "surface_id": "transport-nested-intent",
+      "kind": "nested-intent",
+      "source": "notification-action",
+      "sink": "control-intent-relay",
+      "carrier": "Intent",
+      "notes": []
+    },
+    {
+      "surface_id": "transport-pending-intent",
+      "kind": "mutable-pending-intent",
+      "source": "notification-action",
+      "sink": "pending-intent-target",
+      "carrier": "PendingIntent",
+      "notes": []
+    },
+    {
+      "surface_id": "transport-delegated-path",
+      "kind": "delegated-path",
+      "source": "pending-intent-target",
+      "sink": "control-endpoint-template",
+      "carrier": "path-template",
+      "notes": []
+    }
+  ],
+  "trust_boundaries": [
+    {
+      "boundary_id": "boundary-delegated-identity",
+      "kind": "delegated-identity-boundary",
+      "from_zone": "caller-app",
+      "to_zone": "privileged-component",
+      "guard": "none",
+      "notes": []
+    }
+  ],
+  "resources": [],
+  "native_semantics": [],
+  "correlations": [
+    {
+      "correlation_id": "correlation-delegated-path",
+      "kind": "delegated-path-composition",
+      "members": [
+        "control-intent-relay",
+        "/internal/devices/{id}/arm"
+      ],
+      "support_level": "Inferred",
+      "rationale": "delegated identity reaches templated device path"
+    }
+  ],
+  "warnings": []
+}

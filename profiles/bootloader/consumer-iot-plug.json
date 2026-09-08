@@ -1,0 +1,15 @@
+{
+  "name": "consumer-iot-plug",
+  "prompt": "BK-IoT =>",
+  "bootdelay": 3,
+  "loadaddr": "0x80008000",
+  "bootcmd": "run verify_sig; bootm ${loadaddr}",
+  "bootargs": "console=ttyS0,115200 root=/dev/mmcblk0p2 rw",
+  "verify": "yes",
+  "sig_check": "yes",
+  "recovery_mode": "0",
+  "rollback_ctr": "2",
+  "rollback_idx": "2",
+  "qemu_binary": "qemu-system-arm",
+  "qemu_machine": "virt"
+}

@@ -1,0 +1,100 @@
+{
+  "bundle_version": "android-semantic/v1alpha1",
+  "target": {
+    "application_id": "com.example.binder",
+    "package_name": "com.example.binder",
+    "version_code": "3",
+    "version_name": "1.3",
+    "split_names": []
+  },
+  "extractor": {
+    "extractor_id": "fat-app-jadx-recon",
+    "extractor_version": "0.1.0",
+    "input_kind": "jadx-tree",
+    "generated_at_utc": "2026-04-06T12:00:00Z",
+    "degraded": false,
+    "notes": []
+  },
+  "facts": [
+    {
+      "fact_id": "fact-native-size",
+      "kind": "native.size-sensitive",
+      "subject": "nativeParseBlob",
+      "support_level": "Observed",
+      "provenance": [
+        {
+          "origin": "jadx",
+          "artifact": "sources/com/example/BlobService.java"
+        }
+      ],
+      "attributes": {
+        "operation": "copy"
+      }
+    }
+  ],
+  "symbol_identities": [
+    {
+      "symbol_id": "sym-binder-handle",
+      "language": "java",
+      "kind": "method",
+      "qualified_name": "com.example.BlobService.handleParcel",
+      "descriptor": "(Landroid/os/Parcel;)V",
+      "aliases": []
+    }
+  ],
+  "control_surfaces": [
+    {
+      "surface_id": "control-binder",
+      "kind": "binder-method",
+      "entry_symbol": "sym-binder-handle",
+      "trigger": "TRANSACTION_parseBlob",
+      "notes": []
+    }
+  ],
+  "transport_surfaces": [
+    {
+      "surface_id": "transport-binder",
+      "kind": "binder-parcel",
+      "source": "binder-caller",
+      "sink": "control-binder",
+      "carrier": "Parcel",
+      "notes": []
+    }
+  ],
+  "trust_boundaries": [
+    {
+      "boundary_id": "boundary-binder-native",
+      "kind": "binder-to-native",
+      "from_zone": "binder-caller",
+      "to_zone": "native-parser",
+      "guard": "none",
+      "notes": []
+    }
+  ],
+  "resources": [],
+  "native_semantics": [
+    {
+      "native_id": "native-parseBlob",
+      "kind": "jni-registration",
+      "library_name": "libblob.so",
+      "symbol_name": "Java_com_example_BlobBridge_nativeParseBlob",
+      "linked_symbol_id": "sym-binder-handle",
+      "notes": [
+        "parcel data forwarded into native parser"
+      ]
+    }
+  ],
+  "correlations": [
+    {
+      "correlation_id": "correlation-binder-native",
+      "kind": "binder-to-native",
+      "members": [
+        "sym-binder-handle",
+        "native-parseBlob"
+      ],
+      "support_level": "Observed",
+      "rationale": "binder handler and JNI target share symbol lineage"
+    }
+  ],
+  "warnings": []
+}

@@ -1,0 +1,18 @@
+{
+  "id": "lifetime-negative",
+  "kind": "negative",
+  "family": "lifetime-ownership",
+  "language": "cxx",
+  "file_name": "destroy_callback_negative.cpp",
+  "compile_args": [
+    "clang++",
+    "-x",
+    "c++",
+    "-std=c++17"
+  ],
+  "reference_symbols": [
+    "destroyObserverCallback"
+  ],
+  "surface_candidate": "cleanupShadow",
+  "source": "void ReleaseObserver(int) {}\nvoid DestroyEndpoint(int) {}\nvoid CopyBytes(int, int) {}\n\nvoid destroyObserverCallback(int token)\n{\n  ReleaseObserver(token);\n  DestroyEndpoint(token);\n}\n\nvoid cleanupShadow(int token)\n{\n  ReleaseObserver(token);\n}\n\nvoid copyOnlyNoise(int token)\n{\n  CopyBytes(token, token);\n}\n"
+}

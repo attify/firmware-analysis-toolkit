@@ -1,0 +1,8 @@
+diff --git a/service.cpp b/service.cpp
+--- a/service.cpp
++++ b/service.cpp
+@@
+ void GoodOverride() {
++    enforcePermission();
+     doThing();
+ }

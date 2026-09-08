@@ -1,0 +1,14 @@
+{
+  "schema_version": "crypto-artifact-analysis/v1",
+  "summary_fields_present": true,
+  "confidence": "context-only",
+  "classification_role": "bounded-string-decryptor",
+  "trust_context": {
+    "candidate_classification": "helper-only",
+    "trust_path_relevance": "low"
+  },
+  "first_embedded_key": {
+    "key_type": "vendor-RSA-blob",
+    "confidence": "context-only"
+  }
+}

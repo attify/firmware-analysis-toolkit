@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "id": "kernel-promotion-v1",
+  "minimum_distinct_vendors": 3,
+  "minimum_distinct_targets": 6,
+  "minimum_distinct_families": 3,
+  "minimum_fixture_machines": 2,
+  "require_holdout": true,
+  "maximum_semantic_risk": "medium"
+}

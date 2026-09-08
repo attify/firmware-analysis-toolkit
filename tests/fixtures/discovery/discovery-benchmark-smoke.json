@@ -1,0 +1,15 @@
+{
+  "family": "fat-discovery-smoke",
+  "top_k": 3,
+  "cases": [
+    {"id": "objcxx-positive", "fixture": "../benchmarks/fat-replay-family/objcxx-positive.json"},
+    {"id": "non-objc-positive", "fixture": "../benchmarks/fat-replay-family/non-objc-positive.json"},
+    {"id": "matched-negative", "fixture": "../benchmarks/fat-replay-family/matched-negative.json"},
+    {"id": "lifetime-positive", "fixture": "../benchmarks/fat-replay-family/lifetime-positive.json"},
+    {"id": "lifetime-negative", "fixture": "../benchmarks/fat-replay-family/lifetime-negative.json"},
+    {"id": "protocol-positive", "fixture": "../benchmarks/fat-replay-family/protocol-positive.json"},
+    {"id": "protocol-negative", "fixture": "../benchmarks/fat-replay-family/protocol-negative.json"},
+    {"id": "validation-positive", "fixture": "../benchmarks/fat-replay-family/validation-positive.json"},
+    {"id": "validation-negative", "fixture": "../benchmarks/fat-replay-family/validation-negative.json"}
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "id": "krc-981b0a7b2432657c",
+  "class": "arm32-eabi-le-v7-page4k",
+  "source_lock_id": "ksl-5edf2d6a88d49d80",
+  "builder_id": "kbi-911de99cff7bbb4a",
+  "architecture": {
+    "isa_family": "arm32",
+    "endianness": "little",
+    "userspace_abi": "eabi",
+    "isa_floor": "armv7",
+    "page_size": 4096
+  },
+  "cross_compile": "arm-linux-gnueabi-",
+  "base_defconfig": "multi_v7_defconfig",
+  "ordered_fragments": [
+    "config/common/common-rehosting.config",
+    "config/arch/armv7-eabi.config",
+    "config/machine/qemu-virt-armv7.config"
+  ],
+  "output_image": "arch/arm/boot/zImage",
+  "machine_profile_ids": [
+    "mch-qemu-11-0-2-virt-armv7",
+    "mch-qemu-10-2-virt-armv7"
+  ],
+  "support_tier": "experimental"
+}

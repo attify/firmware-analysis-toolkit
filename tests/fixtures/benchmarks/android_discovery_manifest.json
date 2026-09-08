@@ -1,0 +1,55 @@
+{
+  "suite": "android-discovery-v1",
+  "top_k": 3,
+  "cases": [
+    {
+      "id": "router-explicit",
+      "package_name": "com.example.app",
+      "semantic_bundle": "../android/semantic/router-mini.json",
+      "family": "remote-router-gadget",
+      "expect_min_leads": 1,
+      "expect_top_family": "remote-router-gadget",
+      "expect_symbol_contains": "Router.dispatch"
+    },
+    {
+      "id": "router-path-composition",
+      "package_name": "com.example.remotecontrol",
+      "semantic_bundle": "../android/semantic/remote-control.json",
+      "family": "remote-router-gadget",
+      "expect_min_leads": 1,
+      "expect_top_family": "remote-router-gadget",
+      "expect_symbol_contains": "/api/v1/devices"
+    },
+    {
+      "id": "webview-bridge",
+      "package_name": "com.example.webview",
+      "semantic_bundle": "../android/semantic/webview-positive.json",
+      "family": "webview-bridge-uri",
+      "expect_min_leads": 1,
+      "expect_top_family": "webview-bridge-uri"
+    },
+    {
+      "id": "capability-chain",
+      "package_name": "com.example.notifications",
+      "semantic_bundle": "../android/semantic/capability-chain-positive.json",
+      "family": "capability-chain-confused-deputy",
+      "expect_min_leads": 1,
+      "expect_top_family": "capability-chain-confused-deputy"
+    },
+    {
+      "id": "binder-native",
+      "package_name": "com.example.native",
+      "semantic_bundle": "../android/semantic/binder-native-positive.json",
+      "family": "binder-native-boundary",
+      "expect_min_leads": 1,
+      "expect_top_family": "binder-native-boundary"
+    },
+    {
+      "id": "shallow-control-negative",
+      "package_name": "com.example.shallowcontrol",
+      "semantic_bundle": "../android/semantic/shallow-control.json",
+      "family": "remote-router-gadget",
+      "expect_min_leads": 0
+    }
+  ]
+}

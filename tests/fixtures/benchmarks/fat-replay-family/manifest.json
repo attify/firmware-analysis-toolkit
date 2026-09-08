@@ -1,0 +1,30 @@
+{
+  "family": "fat-replay-family-architecture",
+  "top_k": 3,
+  "cases": [
+    {
+      "id": "objcxx-positive",
+      "fixture": "objcxx-positive.json"
+    },
+    {
+      "id": "non-objc-positive",
+      "fixture": "non-objc-positive.json"
+    },
+    {
+      "id": "matched-negative",
+      "fixture": "matched-negative.json"
+    },
+    {
+      "id": "dependency-roll-vendored-positive",
+      "fixture": "dependency-roll-vendored-positive.json"
+    },
+    {
+      "id": "dependency-roll-upstream-hidden-positive",
+      "fixture": "dependency-roll-upstream-hidden-positive.json"
+    },
+    {
+      "id": "dependency-roll-upstream-hidden-negative",
+      "fixture": "dependency-roll-upstream-hidden-negative.json"
+    }
+  ]
+}

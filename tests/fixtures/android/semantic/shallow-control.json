@@ -1,0 +1,44 @@
+{
+  "bundle_version": "android-semantic/v1alpha1",
+  "target": {
+    "application_id": "com.example.shallowcontrol",
+    "package_name": "com.example.shallowcontrol",
+    "version_code": "1",
+    "version_name": "1.0.0",
+    "split_names": ["split_config.arm64_v8a.apk", "split_config.en.apk"]
+  },
+  "extractor": {
+    "extractor_id": "fat-app-jadx-recon",
+    "extractor_version": "0.1.0",
+    "input_kind": "synthetic-jadx-tree",
+    "generated_at_utc": "2026-01-01T00:00:00Z",
+    "degraded": false,
+    "notes": ["synthetic public negative fixture"]
+  },
+  "facts": [
+    {
+      "fact_id": "fact-platform-abi-0",
+      "kind": "platform.abi",
+      "subject": "arm64-v8a",
+      "support_level": "Observed",
+      "provenance": [{"origin": "fixture", "artifact": "synthetic/shallow-control"}],
+      "attributes": {}
+    },
+    {
+      "fact_id": "fact-platform-native-heavy",
+      "kind": "platform.native-heavy",
+      "subject": "synthetic-jadx-tree",
+      "support_level": "Observed",
+      "provenance": [{"origin": "fixture", "artifact": "synthetic/shallow-control"}],
+      "attributes": {"value": "false"}
+    }
+  ],
+  "symbol_identities": [],
+  "control_surfaces": [],
+  "transport_surfaces": [],
+  "trust_boundaries": [],
+  "resources": [],
+  "native_semantics": [],
+  "correlations": [],
+  "warnings": []
+}

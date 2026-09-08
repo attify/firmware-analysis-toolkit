@@ -1,0 +1,24 @@
+{
+  "id": "objcxx-positive",
+  "kind": "positive",
+  "family": "bounds-size-arithmetic",
+  "language": "objcxx",
+  "file_name": "TextureMtl.mm",
+  "compile_args": [
+    "clang++",
+    "-x",
+    "objective-c++",
+    "-std=c++17",
+    "-target",
+    "arm64-apple-darwin"
+  ],
+  "reference_symbols": [
+    "setPerSliceSubImage"
+  ],
+  "surface_candidate": "setPerSliceSubImageVariant",
+  "variant_candidate": "setPerSliceSubImageShadow",
+  "baseline_candidates": [
+    "setPerSliceSubImageVariant"
+  ],
+  "source": "int MakeBuffer(int x) { return x; }\nvoid SaturateDepth(int) {}\nvoid CopyBufferToOriginalTextureIfDstIsAView(int, int) {}\nvoid CopyBytes(int, int) {}\n\nclass TextureMtl {\npublic:\n  void setPerSliceSubImage(int srcBytesPerImage, int pixelsDepthPitch)\n  {\n    auto buffer = MakeBuffer(pixelsDepthPitch);\n    SaturateDepth(srcBytesPerImage);\n    CopyBufferToOriginalTextureIfDstIsAView(buffer, srcBytesPerImage);\n  }\n\n  void setPerSliceSubImageVariant(int srcBytesPerImage, int pixelsDepthPitch)\n  {\n    auto buffer = MakeBuffer(pixelsDepthPitch);\n    CopyBufferToOriginalTextureIfDstIsAView(buffer, srcBytesPerImage);\n    SaturateDepth(srcBytesPerImage);\n  }\n\n  void setPerSliceSubImageShadow(int srcBytesPerImage, int pixelsDepthPitch)\n  {\n    auto buffer = MakeBuffer(pixelsDepthPitch);\n    CopyBufferToOriginalTextureIfDstIsAView(buffer, srcBytesPerImage);\n    SaturateDepth(srcBytesPerImage);\n  }\n\n  void copyOnlyDecoy(int srcBytesPerImage)\n  {\n    CopyBytes(srcBytesPerImage, srcBytesPerImage);\n  }\n};\n"
+}

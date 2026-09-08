@@ -1,0 +1,79 @@
+{
+  "schema_version": "fat-discovery-target-lanes-v1",
+  "local_manifest_path_hint": "examples/discovery/generic-runtime-targets.local.json",
+  "lanes": [
+    {
+      "lane_id": "lifetime-asan-lane",
+      "family_allowlist": [
+        "lifetime-reentrancy"
+      ],
+      "source_root": "${TARGET_LIFETIME_SOURCE_ROOT}",
+      "build_dir": "${TARGET_LIFETIME_BUILD_DIR}",
+      "binary_or_driver": "./runtime_tests",
+      "launcher_command": [
+        "./runtime_tests",
+        "--gtest_filter=LifecycleRegressionTest.*"
+      ],
+      "required_env": {
+        "ASAN_OPTIONS": "symbolize=1:detect_leaks=0",
+        "LLVM_SYMBOLIZER_PATH": "${LLVM_SYMBOLIZER_PATH}"
+      },
+      "timeout_ms": 900000,
+      "artifact_dir": "${TARGET_LIFETIME_ARTIFACT_DIR}",
+      "sanitizer_mode": "asan",
+      "proof_class_allowlist": [
+        "asan-use-after-free",
+        "guard-trip",
+        "bad-message"
+      ]
+    },
+    {
+      "lane_id": "size-asan-lane",
+      "family_allowlist": [
+        "size-stride-arithmetic"
+      ],
+      "source_root": "${TARGET_SIZE_SOURCE_ROOT}",
+      "build_dir": "${TARGET_SIZE_BUILD_DIR}",
+      "binary_or_driver": "./runtime_tests",
+      "launcher_command": [
+        "./runtime_tests",
+        "--gtest_filter=TransferBoundsTest.*"
+      ],
+      "required_env": {
+        "ASAN_OPTIONS": "symbolize=1:detect_leaks=0"
+      },
+      "timeout_ms": 600000,
+      "artifact_dir": "${TARGET_SIZE_ARTIFACT_DIR}",
+      "sanitizer_mode": "asan",
+      "proof_class_allowlist": [
+        "asan-heap-buffer-overflow",
+        "ubsan-integer-overflow",
+        "guard-trip"
+      ]
+    },
+    {
+      "lane_id": "validation-asan-lane",
+      "family_allowlist": [
+        "validation-trust-boundary"
+      ],
+      "source_root": "${TARGET_VALIDATION_SOURCE_ROOT}",
+      "build_dir": "${TARGET_VALIDATION_BUILD_DIR}",
+      "binary_or_driver": "./runtime_tests",
+      "launcher_command": [
+        "./runtime_tests",
+        "--gtest_filter=ValidationBoundaryTest.*"
+      ],
+      "required_env": {
+        "ASAN_OPTIONS": "symbolize=1:detect_leaks=0",
+        "FAT_LOG_VALIDATION_FAILURES": "1"
+      },
+      "timeout_ms": 600000,
+      "artifact_dir": "${TARGET_VALIDATION_ARTIFACT_DIR}",
+      "sanitizer_mode": "asan",
+      "proof_class_allowlist": [
+        "bad-message",
+        "guard-trip"
+      ]
+    }
+  ]
+}

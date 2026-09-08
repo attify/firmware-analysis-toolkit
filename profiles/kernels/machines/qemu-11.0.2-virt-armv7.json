@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "id": "mch-qemu-11-0-2-virt-armv7",
+  "qemu_version": "11.0.2",
+  "machine": "virt-11.0",
+  "cpu": "cortex-a15",
+  "console": "ttyAMA0",
+  "classes": ["arm32-eabi-le-v7-page4k"],
+  "capability_tier": "fixture-validated"
+}

@@ -1,0 +1,22 @@
+{
+  "id": "sensor-packet-parse-positive",
+  "kind": "positive",
+  "family": "bounds-size-arithmetic",
+  "language": "c",
+  "file_name": "sensor_packet.c",
+  "compile_args": [
+    "clang",
+    "-x",
+    "c",
+    "-std=c11"
+  ],
+  "reference_symbols": [
+    "sensor_parse_readings"
+  ],
+  "surface_candidate": "sensor_parse_readings_variant",
+  "variant_candidate": "sensor_parse_readings_neighbor",
+  "baseline_candidates": [
+    "sensor_parse_readings_variant"
+  ],
+  "source": "typedef unsigned int uint32_t;\ntypedef unsigned short uint16_t;\ntypedef unsigned char uint8_t;\ntypedef unsigned long size_t;\nvoid memcpy(void*, const void*, size_t);\n\ntypedef struct { uint16_t sensor_id; uint16_t num_readings; uint8_t data[256]; } sensor_packet_t;\ntypedef struct { float value; uint32_t timestamp; } sensor_reading_t;\n\nvoid sensor_parse_readings(const sensor_packet_t* pkt, sensor_reading_t* out, size_t out_cap)\n{\n  void* buf = (void*)malloc(pkt->num_readings * sizeof(sensor_reading_t));\n  memcpy(buf, pkt->data, pkt->num_readings * sizeof(sensor_reading_t));\n  memcpy(out, buf, pkt->num_readings * sizeof(sensor_reading_t));\n}\n\nvoid sensor_parse_readings_variant(const sensor_packet_t* pkt, sensor_reading_t* out, size_t out_cap)\n{\n  void* buf = (void*)malloc(pkt->num_readings * sizeof(sensor_reading_t));\n  memcpy(buf, pkt->data, pkt->num_readings * sizeof(sensor_reading_t));\n  memcpy(out, buf, pkt->num_readings * sizeof(sensor_reading_t));\n}\n\nvoid sensor_parse_readings_neighbor(const sensor_packet_t* pkt, sensor_reading_t* out, size_t out_cap)\n{\n  size_t copy_size = pkt->num_readings * sizeof(sensor_reading_t);\n  memcpy(out, pkt->data, copy_size);\n}\n\nvoid* malloc(size_t);\n"
+}

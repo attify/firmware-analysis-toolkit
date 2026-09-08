@@ -1,0 +1,22 @@
+{
+  "id": "validation-positive",
+  "kind": "positive",
+  "family": "validation-policy",
+  "language": "cxx",
+  "file_name": "permission_override.cpp",
+  "compile_args": [
+    "clang++",
+    "-x",
+    "c++",
+    "-std=c++17"
+  ],
+  "reference_symbols": [
+    "permissionCheckedOverride"
+  ],
+  "surface_candidate": "permissionCheckedOverrideVariant",
+  "variant_candidate": "permissionCheckedShadow",
+  "baseline_candidates": [
+    "permissionCheckedOverrideVariant"
+  ],
+  "source": "bool hasPermission(int) { return true; }\nvoid enforcePermission(int) {}\nvoid logDenied(int) {}\n\nvoid permissionCheckedOverride(int uid)\n{\n  if (!hasPermission(uid)) {\n    logDenied(uid);\n    return;\n  }\n  enforcePermission(uid);\n}\n\nvoid permissionCheckedOverrideVariant(int uid)\n{\n  if (!hasPermission(uid)) {\n    logDenied(uid);\n    return;\n  }\n  enforcePermission(uid);\n}\n\nvoid permissionCheckedShadow(int uid)\n{\n  if (!hasPermission(uid)) {\n    logDenied(uid);\n    return;\n  }\n  enforcePermission(uid);\n}\n\nvoid denyOnlyNoise(int uid)\n{\n  logDenied(uid);\n}\n"
+}

@@ -1,0 +1,22 @@
+{
+  "id": "uart-rx-callback-positive",
+  "kind": "positive",
+  "family": "lifetime-ownership",
+  "language": "c",
+  "file_name": "uart_handler.c",
+  "compile_args": [
+    "clang",
+    "-x",
+    "c",
+    "-std=c11"
+  ],
+  "reference_symbols": [
+    "uart_teardown_rx_handler"
+  ],
+  "surface_candidate": "uart_teardown_rx_handler_variant",
+  "variant_candidate": "uart_teardown_rx_handler_neighbor",
+  "baseline_candidates": [
+    "uart_teardown_rx_handler_variant"
+  ],
+  "source": "typedef struct { int irq; void (*rx_callback)(void*); void* cb_data; } uart_port_t;\n\nvoid uart_disable_irq(int irq) { (void)irq; }\nvoid uart_release_observer(uart_port_t* p) { (void)p; }\nvoid uart_destroy_endpoint(uart_port_t* p) { (void)p; }\nvoid uart_free_port(uart_port_t* p) { (void)p; }\n\nvoid uart_teardown_rx_handler(uart_port_t* port)\n{\n  uart_release_observer(port);\n  uart_disable_irq(port->irq);\n  uart_destroy_endpoint(port);\n  uart_free_port(port);\n}\n\nvoid uart_teardown_rx_handler_variant(uart_port_t* port)\n{\n  uart_release_observer(port);\n  uart_disable_irq(port->irq);\n  uart_destroy_endpoint(port);\n  uart_free_port(port);\n}\n\nvoid uart_teardown_rx_handler_neighbor(uart_port_t* port)\n{\n  uart_release_observer(port);\n  uart_destroy_endpoint(port);\n  uart_free_port(port);\n}\n"
+}

@@ -1,0 +1,46 @@
+[package]
+name = "fat-toolkit-extract"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+readme.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Firmware extraction wrapper around binwalk/unblob for FAT"
+publish = false
+
+[lib]
+name = "fat_extract"
+path = "src/lib.rs"
+
+[dependencies]
+crc32fast = "1"
+flate2 = "1"
+serde = { version = "1", features = ["derive"] }
+tar = "0.4"
+walkdir = "2"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+serde_json = "1"
+tempfile = "3"
+
+[[test]]
+name = "test_extraction_manifest"
+path = "../../tests/integration/test_extraction_manifest.rs"
+
+[[test]]
+name = "test_extraction_strategy"
+path = "../../tests/integration/test_extraction_strategy.rs"
+
+[[test]]
+name = "test_safe_tar"
+path = "../../tests/integration/test_safe_tar.rs"
+
+[lints]
+workspace = true

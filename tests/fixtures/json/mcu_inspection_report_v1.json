@@ -1,0 +1,13 @@
+{
+  "schema_version": "mcu-inspection/v1",
+  "artifact_path_present": true,
+  "backend": "native-mcu-inspect",
+  "user_base": 134217728,
+  "user_family": "STM32H7",
+  "fast_profile_family": "STM32H7",
+  "has_address_hypotheses": true,
+  "has_startup_chain": true,
+  "has_execution_model": true,
+  "has_security_surface": true,
+  "has_integrity_checks": true
+}

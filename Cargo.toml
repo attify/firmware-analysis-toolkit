@@ -1,0 +1,36 @@
+[workspace]
+members = [
+    "crates/fat_analyze",
+    "crates/fat_cli",
+    "crates/fat_bootloader",
+    "crates/fat_core",
+    "crates/fat_package",
+    "crates/fat_backend",
+    "crates/fat_emulate",
+    "crates/fat_extract",
+    "crates/fat_family",
+    "crates/fat_plugin_api",
+    "crates/fat_plugin_host",
+    "crates/fat_query",
+    "crates/fat_taint",
+]
+resolver = "2"
+
+[workspace.package]
+version = "2.0.0-alpha.1"
+edition = "2021"
+rust-version = "1.90"
+license = "FSL-1.1-ALv2"
+authors = ["adi0x90", "Attify"]
+readme = "README.md"
+repository = "https://github.com/attify/firmware-analysis-toolkit"
+keywords = ["firmware", "security", "iot", "emulation", "reverse-engineering"]
+categories = ["command-line-utilities", "development-tools"]
+
+# Design-level lints allowed workspace-wide. These reflect deliberate choices
+# (rich command signatures, large domain error enums, expressive graph types)
+# rather than defects, so CI can run `-D warnings` on the remainder.
+[workspace.lints.clippy]
+too_many_arguments = "allow"
+result_large_err = "allow"
+type_complexity = "allow"

@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "id": "krc-d98ebd49bd030bf3",
+  "class": "mips32-o32-le-r1-page4k",
+  "source_lock_id": "ksl-5edf2d6a88d49d80",
+  "builder_id": "kbi-911de99cff7bbb4a",
+  "architecture": {
+    "isa_family": "mips32",
+    "endianness": "little",
+    "userspace_abi": "o32",
+    "isa_floor": "mips32r1",
+    "page_size": 4096
+  },
+  "cross_compile": "mipsel-linux-gnu-",
+  "base_defconfig": "malta_defconfig",
+  "ordered_fragments": [
+    "config/common/common-rehosting.config",
+    "config/arch/mips32-o32.config",
+    "config/machine/malta-4k.config",
+    "config/arch/mips32-le.config"
+  ],
+  "output_image": "vmlinux",
+  "machine_profile_ids": [
+    "mch-qemu-11-0-2-malta-r2",
+    "mch-qemu-11-0-2-malta-r1",
+    "mch-qemu-10-2-malta-r2",
+    "mch-qemu-10-2-malta-r1"
+  ],
+  "support_tier": "experimental"
+}

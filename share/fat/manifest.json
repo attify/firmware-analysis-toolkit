@@ -1,0 +1,172 @@
+{
+  "schema_version": 1,
+  "data_version": "2.0.0-alpha.1",
+  "compatible_fat": ">=2.0.0-alpha.1,<2.1.0",
+  "files": [
+    {
+      "path": "LICENSE",
+      "sha256": "d3cb00902d33ad1540ab4de5a34ebbf7e0dbf8402cb3e31f44bb0bb60b43fff0",
+      "required": true
+    },
+    {
+      "path": "LICENSES/GPL-2.0-or-later.txt",
+      "sha256": "aaf135472f81c5b4a0dca9367e5bb5e9750032b5bebe5442b36e4c0a47430df3",
+      "required": true
+    },
+    {
+      "path": "LICENSING.md",
+      "sha256": "ed757539d77f05b6826ce1724a59b951711c0f197ce4fd494dea41fd94825da4",
+      "required": true
+    },
+    {
+      "path": "THIRD_PARTY_NOTICES.md",
+      "sha256": "f2eed5f4980aae0091746ee9748be649069f91953a114e106afe02226918ec92",
+      "required": true
+    },
+    {
+      "path": "profiles/bootloader/README.md",
+      "sha256": "c836fe1632c57a9528234d85cd3ec814e75485067a2d4341ffdeff5325be9453",
+      "required": true
+    },
+    {
+      "path": "profiles/bootloader/consumer-iot-camera.json",
+      "sha256": "ad9853e26bee3b5c5ef694621525725f97b15b5c1fdeb36e02f690d04199e7f5",
+      "required": true
+    },
+    {
+      "path": "profiles/bootloader/consumer-iot-plug.json",
+      "sha256": "48bbec1ff034555693fae67e0cd95830a07d1d486fa88c0df26bd33b3ccf10a2",
+      "required": true
+    },
+    {
+      "path": "profiles/kernels/ATTRIBUTION.md",
+      "sha256": "df14b6836d9488a736cd8b957480812734abaad26b3df97a2ba8fc9f0da24bcc",
+      "required": true
+    },
+    {
+      "path": "profiles/kernels/README.md",
+      "sha256": "a4cc48072ce1e4dcaad0bb3e98b9db94290beece1dc1778e939de4830af04f67",
+      "required": true
+    },
+    {
+      "path": "profiles/kernels/builders/debian-13-cross.json",
+      "sha256": "6e9895c5915f6487bf2320454df5f6098e74642887fe9e4b6fb3cb24a16d1d40",
+      "required": true
+    },
+    {
+      "path": "profiles/kernels/catalog.json",
+      "sha256": "0e84c00ec4688ba98cb4543de90842c7ca14243c385c3e00ec269cbebb75cfc1",
+      "required": true
+    },
+    {
+      "path": "profiles/kernels/config/arch/armv7-eabi.config",
+      "sha256": "255197d7f96bbbd562865c5c04b3993249f66147ce54c2b2475471315d86a7bb",
+      "required": true
+    },
+    {
+      "path": "profiles/kernels/config/arch/mips32-be.config",
+      "sha256": "80812cf89420003a0c6cc58bdfbba4e71bec182109091ed59cb9ae72124582de",
+      "required": true
+    },
+    {
+      "path": "profiles/kernels/config/arch/mips32-le.config",
+      "sha256": "8b8f492e7fa1f27ec29a8761ab4957de850f2fcf150a8b09f2f4d32d76888248",
+      "required": true
+    },
+    {
+      "path": "profiles/kernels/config/arch/mips32-o32.config",
+      "sha256": "93eb56e7c2af918707e1a08803402d91edcd671fc44debec0f5e051bf4b64e8f",
+      "required": true
+    },
+    {
+      "path": "profiles/kernels/config/common/common-rehosting.config",
+      "sha256": "327a6db123518a14e5c148bacd3a42fcfd4aa4a3d75c99ec5873db429aed65f4",
+      "required": true
+    },
+    {
+      "path": "profiles/kernels/config/machine/malta-4k.config",
+      "sha256": "9a0b94ef2eef2eb85ab76835d3e86e200fca28ca8948c83117fc8bec3db25a3d",
+      "required": true
+    },
+    {
+      "path": "profiles/kernels/config/machine/qemu-virt-armv7.config",
+      "sha256": "0b37d584b102452edd3126db1d8e6acfabef8ab8939a0ea48fba81bdfe5120b8",
+      "required": true
+    },
+    {
+      "path": "profiles/kernels/machines/qemu-10.2-malta-r1.json",
+      "sha256": "ddd5833fa27ca367ddbd6341993686a3c226ac39b027ff9d45335f67b2944495",
+      "required": true
+    },
+    {
+      "path": "profiles/kernels/machines/qemu-10.2-malta-r2.json",
+      "sha256": "fe8dc7bd408d8dc118cb4a795c454ec09e09b814e8cee347878e38e50bbbc7aa",
+      "required": true
+    },
+    {
+      "path": "profiles/kernels/machines/qemu-10.2-virt-armv7.json",
+      "sha256": "47af7ce3200f6ce02ef9fee7af59638a70f90433a75c5f68f7ac72c72ed4e7ce",
+      "required": true
+    },
+    {
+      "path": "profiles/kernels/machines/qemu-11.0.2-malta-r1.json",
+      "sha256": "237930ddd3d225f08b5347440e84354e14a3615e1ccad814f346cced8a18f63c",
+      "required": true
+    },
+    {
+      "path": "profiles/kernels/machines/qemu-11.0.2-malta-r2.json",
+      "sha256": "3fab09291c5f0b59019b611eb86344b7f44d6b847f294d41fbaa5664edbac35a",
+      "required": true
+    },
+    {
+      "path": "profiles/kernels/machines/qemu-11.0.2-virt-armv7.json",
+      "sha256": "a1e4aece71a02957b1f7f1cfdbc7bc93dadc40348bb59e77f38da2f41f9f5d0f",
+      "required": true
+    },
+    {
+      "path": "profiles/kernels/promotion-policy-v1.json",
+      "sha256": "f252caa1d7c21f10b1b137fc38608d08f9a094b69ccc86a7851d87e9cf64f6b7",
+      "required": true
+    },
+    {
+      "path": "profiles/kernels/recipes/linux-arm32-eabi-le-v7-4k.json",
+      "sha256": "d930bc70dc5b9cb44c4f1989f9624bd4b0b522998d8a4debb248c28fd4e8495a",
+      "required": true
+    },
+    {
+      "path": "profiles/kernels/recipes/linux-mips32-o32-be-r1-4k.json",
+      "sha256": "436e29a665c77290902c552471b0a8c593407954833c0f30daaf2f980f85d1c3",
+      "required": true
+    },
+    {
+      "path": "profiles/kernels/recipes/linux-mips32-o32-le-r1-4k.json",
+      "sha256": "10cdc3facfff768a96955620af05f8eef80e2a714e71ba4b3b83a91fb4c56d44",
+      "required": true
+    },
+    {
+      "path": "profiles/kernels/source-locks/linux-6.18.45.json",
+      "sha256": "0bcc22f66c903f6002c347fcc199b9e5e90d6470014060b289cd8f8ebcf02a4b",
+      "required": true
+    },
+    {
+      "path": "scripts/discovery/android/README.md",
+      "sha256": "edc4d9261cc211c3fbfe371073452feb2e885d5fdbc6e02de8aca1e48b6765ed",
+      "required": true
+    },
+    {
+      "path": "scripts/discovery/android/adb_icc_runner.py",
+      "sha256": "0be42c18625ad3e9542951c93cc610df85e37673b4d5049325f3bd9e21fd78e9",
+      "required": true
+    },
+    {
+      "path": "scripts/discovery/android/native_runner.py",
+      "sha256": "be31a1539da440a2d9ead01305dc3c7981e6f9bcebc6a6969f198c33256be95a",
+      "required": true
+    },
+    {
+      "path": "scripts/discovery/android/webview_runner.py",
+      "sha256": "1d481d87a15c5176654212cbecc4bc676965f0c52fbbefe0ff05ba782a68227b",
+      "required": true
+    }
+  ]
+}

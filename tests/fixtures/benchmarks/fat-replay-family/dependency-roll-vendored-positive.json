@@ -1,0 +1,28 @@
+{
+  "id": "dependency-roll-vendored-positive",
+  "kind": "positive",
+  "family": "dependency-roll-upstream-hidden",
+  "language": "cxx",
+  "file_name": "roll_surface.cpp",
+  "compile_args": [
+    "clang++",
+    "-x",
+    "c++",
+    "-std=c++17"
+  ],
+  "reference_symbols": [
+    "rollSurface"
+  ],
+  "surface_candidate": "rollSurfaceVariant",
+  "variant_candidate": "vendored-neighborhood:third_party/libdemo",
+  "baseline_candidates": [
+    "rollSurfaceVariant"
+  ],
+  "variant_baseline_candidates": [],
+  "roll_metadata": {
+    "likely_upstream_repo": "https://example.invalid/upstream.git",
+    "vendored_nearby_path": "third_party/libdemo",
+    "local_patch_touching_vendored_code": true
+  },
+  "source": "bool hasPermission(int) { return true; }\nvoid enforcePermission(int) {}\nvoid logDenied(int) {}\nvoid vendorCall(int) {}\n\nvoid rollSurface(int uid)\n{\n  if (!hasPermission(uid)) {\n    logDenied(uid);\n    return;\n  }\n  enforcePermission(uid);\n}\n\nvoid rollSurfaceVariant(int uid)\n{\n  if (!hasPermission(uid)) {\n    logDenied(uid);\n    return;\n  }\n  enforcePermission(uid);\n}\n\nvoid rollSurfaceDecoy(int uid)\n{\n  vendorCall(uid);\n}\n"
+}

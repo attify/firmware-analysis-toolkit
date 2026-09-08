@@ -1,0 +1,15 @@
+{
+  "comparator_id": "firmae",
+  "run_mode": "comparator-tuned",
+  "host_profile": "native-arm64-docker-desktop",
+  "outcome_class": "partial",
+  "evidence_grade": "moderate",
+  "stage_vector": {
+    "intake": { "status": "reached" },
+    "boot": { "status": "reached" },
+    "reachability": { "status": "partial" },
+    "operator_access": { "status": "not-reached" },
+    "research_utility": { "status": "reached" },
+    "exploit_readiness": { "status": "not-reached" }
+  }
+}

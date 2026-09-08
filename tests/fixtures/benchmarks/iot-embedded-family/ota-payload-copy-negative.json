@@ -1,0 +1,18 @@
+{
+  "id": "ota-payload-copy-negative",
+  "kind": "negative",
+  "family": "bounds-size-arithmetic",
+  "language": "c",
+  "file_name": "ota_update_negative.c",
+  "compile_args": [
+    "clang",
+    "-x",
+    "c",
+    "-std=c11"
+  ],
+  "reference_symbols": [
+    "ota_apply_chunk"
+  ],
+  "surface_candidate": "ota_get_version",
+  "source": "typedef unsigned int uint32_t;\ntypedef unsigned long size_t;\nvoid* malloc(size_t);\nvoid memcpy(void*, const void*, size_t);\nvoid flash_write(uint32_t, const void*, size_t);\n\ntypedef struct { uint32_t offset; uint32_t length; const void* data; } ota_chunk_t;\n\nvoid ota_apply_chunk(ota_chunk_t* chunk, uint32_t flash_base)\n{\n  void* buf = malloc(chunk->length);\n  memcpy(buf, chunk->data, chunk->length);\n  flash_write(flash_base + chunk->offset, buf, chunk->length);\n}\n\nint ota_get_version(void)\n{\n  return 42;\n}\n"
+}

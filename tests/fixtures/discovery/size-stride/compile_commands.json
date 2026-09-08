@@ -1,0 +1,7 @@
+[
+  {
+    "directory": ".",
+    "file": "Surface.mm",
+    "arguments": ["clang++", "-x", "objective-c++", "-std=c++17", "Surface.mm"]
+  }
+]

@@ -1,0 +1,22 @@
+{
+  "id": "protocol-positive",
+  "kind": "positive",
+  "family": "gpu-protocol-order-lifecycle",
+  "language": "cxx",
+  "file_name": "gpu_protocol_positive.cpp",
+  "compile_args": [
+    "clang++",
+    "-x",
+    "c++",
+    "-std=c++17"
+  ],
+  "reference_symbols": [
+    "GpuMapDestroySequence"
+  ],
+  "surface_candidate": "GpuMapDestroySequenceVariant",
+  "variant_candidate": "GpuDeviceLostAsyncSequence",
+  "baseline_candidates": [
+    "GpuMapDestroySequenceVariant"
+  ],
+  "source": "void GpuMapAsync() {}\nvoid GpuSubmit() {}\nvoid GpuDestroy() {}\nvoid GpuDeviceLostCallback() {}\nvoid GpuStateGuard() {}\n\nvoid GpuMapDestroySequence() {\n  GpuMapAsync();\n  GpuSubmit();\n  GpuDestroy();\n}\n\nvoid GpuMapDestroySequenceVariant() {\n  GpuMapAsync();\n  GpuSubmit();\n  GpuDestroy();\n}\n\nvoid GpuDeviceLostAsyncSequence() {\n  GpuSubmit();\n  GpuDeviceLostCallback();\n  GpuDestroy();\n}\n\nvoid GpuGuardedSubmitCleanup() {\n  GpuStateGuard();\n  GpuSubmit();\n  GpuDestroy();\n}\n"
+}

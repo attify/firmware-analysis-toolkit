@@ -1,0 +1,48 @@
+name: linux-command-exec
+version: 1
+description: Linux command execution sink discovery seeds and scoring rules
+
+applies_to:
+  os: linux
+  arch:
+    - mips
+    - arm
+    - x86
+  formats:
+    - elf
+
+families:
+  command-exec:
+    dangerous_arg: 0
+    string_seeds:
+      - value: /bin/sh
+        weight: 0.35
+        tags:
+          - shell
+      - value: /bin/ash
+        weight: 0.30
+        tags:
+          - shell
+          - busybox
+      - value: sh -c
+        weight: 0.30
+        tags:
+          - shell
+    pointer_xrefs:
+      enabled: true
+      weight: 0.20
+      scan: non-executable
+    code_patterns:
+      - id: mips-direct-string-load
+        arch: mips
+        weight: 0.20
+      - id: mips-gp-load-to-a0
+        arch: mips
+        weight: 0.20
+      - id: mips-execve-like-argv-setup
+        arch: mips
+        weight: 0.35
+    confidence:
+      weak: 0.25
+      probable: 0.55
+      strong: 0.80
