@@ -12,7 +12,7 @@ We went this way because Attify is a small company and FAT is a real product rat
 
 ## Getting set up
 
-FAT is a Rust workspace. You need Rust **1.90** or newer via [rustup](https://rustup.rs); `rust-toolchain.toml` pins the channel and the `rustfmt`/`clippy` components. The [README](README.md#external-tools) lists the external tools FAT can orchestrate, and `fat doctor` tells you what's actually installed on your machine.
+FAT is a Rust workspace. You need Rust **1.90** or newer via [rustup](https://rustup.rs); `rust-toolchain.toml` pins the channel and the `rustfmt`/`clippy` components. The [external tools list](INSTALL.md#external-tools) shows what FAT can orchestrate, and `fat doctor` tells you what's actually installed on your machine.
 
 ```bash
 cargo build                     # build everything
