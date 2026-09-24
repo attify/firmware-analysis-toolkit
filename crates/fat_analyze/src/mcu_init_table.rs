@@ -68,7 +68,9 @@ impl ImageAddressing {
         image_len: usize,
     ) -> Option<Self> {
         Some(Self {
-            flash_base: infer_flash_base(reset_address)?,
+            flash_base: layout
+                .vector_address
+                .or_else(|| infer_flash_base(reset_address))?,
             vector_offset: *layout.candidate_offsets.first().unwrap_or(&0),
             image_len,
         })
@@ -426,25 +428,7 @@ fn conditional_branch_target(address: u32, halfword: u16) -> Option<u32> {
 }
 
 fn wide_branch_target(first: u16, second: u16, address: u32) -> Option<u32> {
-    let s = u32::from((first >> 10) & 1);
-    let imm10 = u32::from(first & 0x03ff);
-    let j1 = u32::from((second >> 13) & 1);
-    let j2 = u32::from((second >> 11) & 1);
-    let imm11 = u32::from(second & 0x07ff);
-    let (i1, i2) = if second & 0xd000 == 0x9000 {
-        // B.W T4 shares BL's J-bit encoding.
-        ((!(j1 ^ s)) & 1, (!(j2 ^ s)) & 1)
-    } else {
-        // B<cond>.W T3 uses J1/J2 directly and a 6-bit condition field.
-        (j1, j2)
-    };
-    let imm25 = (s << 24) | (i1 << 23) | (i2 << 22) | (imm10 << 12) | (imm11 << 1);
-    let signed = if imm25 & (1 << 24) != 0 {
-        (imm25 | 0xfe00_0000) as i32
-    } else {
-        imm25 as i32
-    };
-    Some(address.wrapping_add(4).wrapping_add_signed(signed))
+    crate::mcu_thumb::wide_branch_target(first, second, address, second & 0xd000 == 0x9000)
 }
 
 /// A descriptor table recovered from one startup function.

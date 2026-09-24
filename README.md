@@ -56,6 +56,18 @@ fat ./firmware.bin
 fat inspect update --file ./firmware.bin --rootfs ./rootfs --reference ./older.bin
 ```
 
+`fat ./firmware.bin` is shorthand for `fat identify --file ./firmware.bin`.
+It gives a compact overview of the file's identity and structure.
+Add `--details` for supporting tables.
+For raw MCU images, inspect the mapping, startup, interrupts, and hardware:
+
+```bash
+fat inspect mcu --file ./firmware.bin
+fat inspect mcu --file ./firmware.bin --details
+```
+
+Both commands support `--json` for the full structured analysis report.
+
 ### Image to Runtime
 
 The pipeline from Quick start, end to end:

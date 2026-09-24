@@ -2,6 +2,16 @@ use serde_json::Value;
 use std::process::Command;
 use tempfile::tempdir;
 
+// Human reports wrap and align to the available terminal width. Assertions
+// compare content, not incidental line breaks or padding before colons.
+fn readable_output(bytes: &[u8]) -> String {
+    String::from_utf8_lossy(bytes)
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .replace(" :", ":")
+}
+
 #[path = "../support/firmware_formats.rs"]
 mod firmware_formats;
 
@@ -196,6 +206,220 @@ fn build_mcu_blob() -> Vec<u8> {
     let payload = b"shared_flag update ota crc32 erase program uart comms flash";
     bytes[0x300..0x300 + payload.len()].copy_from_slice(payload);
     bytes
+}
+
+// Synthetic vectors/identity text, not a redistributed vendor ROM.
+fn build_rom_blob() -> Vec<u8> {
+    let mut bytes = vec![0u8; 0x4000];
+    for (slot, value) in [0x1000_0ffcu32, 0x1fff_0105, 0x1fff_0fa9, 0x1fff_0fab]
+        .into_iter()
+        .enumerate()
+    {
+        bytes[slot * 4..slot * 4 + 4].copy_from_slice(&value.to_le_bytes());
+    }
+    let identity = b"NXP     LPC134X IFLASH  1.0";
+    bytes[0x300..0x300 + identity.len()].copy_from_slice(identity);
+    for (i, word) in "NXP LPC13XX IFLASH".encode_utf16().enumerate() {
+        bytes[0x380 + i * 2..0x382 + i * 2].copy_from_slice(&word.to_le_bytes());
+    }
+    bytes[0x104..0x108].copy_from_slice(&[0x00, 0xbf, 0x70, 0x47]);
+    bytes.extend_from_within(..);
+    bytes
+}
+
+fn identify_blob_json(bytes: &[u8]) -> serde_json::Value {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("unknown.bin");
+    std::fs::write(&path, bytes).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_fat"))
+        .args(["identify", path.to_str().unwrap(), "--json"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    serde_json::from_slice(&output.stdout).unwrap()
+}
+
+#[test]
+fn identify_rom_preserves_independent_identity_and_duplication_evidence() {
+    let report = identify_blob_json(&build_rom_blob());
+    assert_eq!(report["mcu"]["architecture"], "ARM Cortex-M");
+    assert_eq!(report["mcu"]["family"], "NXP LPC134x");
+    assert_eq!(report["mcu"]["base_hypothesis"], "0x1FFF0000");
+    assert_eq!(
+        report["mcu"]["identification"]["image_role"],
+        "boot-rom-likely"
+    );
+    assert_eq!(
+        report["envelope"]["repetition"]["repeated_unit_bytes"],
+        16384
+    );
+    assert_eq!(report["envelope"]["repetition"]["copies"], 2);
+    assert_eq!(report["envelope"]["ecb_assessment"], "not-indicated");
+    assert!(report["mcu"]["identification"]["identity_strings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|s| s["encoding"] == "utf-16le" && s["offset"] == 0x380));
+}
+
+#[test]
+fn identify_retains_architecture_when_code_mapping_is_unknown() {
+    let mut bytes = build_rom_blob();
+    bytes.truncate(0x4000);
+    bytes[0..4].copy_from_slice(&0x2000_2000u32.to_le_bytes());
+    for (offset, address) in [(4, 0x6000_0105u32), (8, 0x6000_0201), (12, 0x6000_0301)] {
+        bytes[offset..offset + 4].copy_from_slice(&address.to_le_bytes());
+    }
+    let report = identify_blob_json(&bytes);
+    assert_eq!(report["mcu"]["architecture"], "ARM Cortex-M");
+    assert_eq!(report["mcu"]["family"], "unresolved");
+    assert!(report["mcu"]["base_hypothesis"].is_null());
+}
+
+#[test]
+fn identity_strings_alone_do_not_establish_mcu_architecture() {
+    let mut bytes = build_rom_blob();
+    bytes[..64].fill(0);
+    bytes[0x4000..0x4040].fill(0);
+    let report = identify_blob_json(&bytes);
+    assert!(report["mcu"].is_null());
+    assert_eq!(report["likely_class"], "unknown");
+    assert!(!report["mcu_diagnostics"]["identity_strings"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+}
+
+#[test]
+fn identify_and_inspect_share_rom_identification_and_measurements() {
+    let bytes = build_rom_blob();
+    let identified = identify_blob_json(&bytes);
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("image.bin");
+    std::fs::write(&path, &bytes).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_fat"))
+        .args(["inspect", "mcu", "--file", path.to_str().unwrap(), "--json"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let inspected: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(
+        identified["mcu"]["identification"],
+        inspected["identification"]
+    );
+    assert_eq!(
+        identified["envelope"]["repetition"],
+        inspected["byte_measurements"]["repetition"]
+    );
+    assert_eq!(
+        inspected["image_layout"]["kind"]["value"],
+        "bootloader-only-image"
+    );
+    assert_eq!(
+        inspected["startup_chain"]["steps"][0]["address"],
+        0x1fff0104
+    );
+}
+
+#[test]
+fn explicit_base_maps_unknown_architecture_without_asserting_a_family() {
+    let mut bytes = build_rom_blob();
+    bytes.truncate(0x4000);
+    bytes[0..4].copy_from_slice(&0x2000_2000u32.to_le_bytes());
+    for (offset, address) in [(4, 0x6000_0105u32), (8, 0x6000_0201), (12, 0x6000_0301)] {
+        bytes[offset..offset + 4].copy_from_slice(&address.to_le_bytes());
+    }
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("image.bin");
+    std::fs::write(&path, &bytes).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_fat"))
+        .args([
+            "inspect",
+            "mcu",
+            "--file",
+            path.to_str().unwrap(),
+            "--base",
+            "0x60000000",
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let inspected: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert!(inspected["identification"]["family"].is_null());
+    assert_eq!(inspected["analysis_provenance"]["user_base"], 0x60000000);
+    assert_eq!(
+        inspected["address_hypotheses"][0]["rationale"][0],
+        "user-specified base"
+    );
+    assert_eq!(inspected["image_layout"]["vector_address"], 0x60000000);
+    assert_eq!(
+        inspected["vector_table"]["entries"][1]["address"],
+        0x60000105
+    );
+    assert_eq!(
+        inspected["startup_chain"]["steps"][0]["address"],
+        0x60000104
+    );
+}
+
+#[test]
+fn explicit_base_preserves_partial_vector_evidence_through_inspection() {
+    let base = 0x6000_0000u32;
+    let mut bytes = Vec::new();
+    for word in [
+        0x2000_2000,
+        base + 0x21,
+        base + 0x25,
+        base + 0x29,
+        base + 0x25,
+        base + 0x25,
+        base + 0x25,
+        0,
+    ] {
+        bytes.extend_from_slice(&word.to_le_bytes());
+    }
+    for _ in 0..16 {
+        bytes.extend_from_slice(&0x4770_d100u32.to_le_bytes());
+    }
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("partial.bin");
+    std::fs::write(&path, &bytes).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_fat"))
+        .args([
+            "inspect",
+            "mcu",
+            "--file",
+            path.to_str().unwrap(),
+            "--base",
+            "0x60000000",
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let inspected: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(inspected["identification"]["architecture"], "ARM Cortex-M");
+    assert_eq!(
+        inspected["identification"]["architecture_confidence"],
+        "medium"
+    );
+    assert_eq!(inspected["image_layout"]["vector_address"], base);
+    assert_eq!(
+        inspected["startup_chain"]["steps"][0]["address"],
+        base + 0x20
+    );
+    assert!(
+        inspected["identification"]["vector_candidates"][0]["evidence"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|e| e.as_str().unwrap().contains("partial vector table"))
+    );
 }
 
 fn write_uimage_header(target: &mut [u8], image_type: u8, compression: u8, name: &str) {
@@ -447,7 +671,7 @@ fn high_entropy_shrs_firmware_fixture() -> Vec<u8> {
 }
 
 #[test]
-fn fat_identify_help_mentions_file_and_json() {
+fn fat_identify_help_mentions_file_json_and_details() {
     let output = Command::new(env!("CARGO_BIN_EXE_fat"))
         .args(["identify", "--help"])
         .output()
@@ -458,7 +682,7 @@ fn fat_identify_help_mentions_file_and_json() {
         "stderr:\n{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = readable_output(&output.stdout);
     assert!(
         stdout.contains("identify"),
         "help did not mention identify:\n{stdout}"
@@ -470,6 +694,10 @@ fn fat_identify_help_mentions_file_and_json() {
     assert!(
         stdout.contains("--json"),
         "help did not mention --json:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("--details"),
+        "help did not mention --details:\n{stdout}"
     );
 }
 
@@ -493,7 +721,7 @@ fn fat_identify_reports_firmware_indicators_for_compression_only_blob() {
         "stderr:\n{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = readable_output(&output.stdout);
     for needle in [
         "Likely class: raw-firmware-blob",
         "Firmware indicators",
@@ -524,7 +752,7 @@ fn fat_identify_labels_shrs_without_unsupported_vendor_attribution() {
         "stderr:\n{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = readable_output(&output.stdout);
     assert!(
         stdout.contains("Known top-level header: SHRS"),
         "stdout:\n{stdout}"
@@ -561,7 +789,7 @@ fn fat_identify_labels_unitree_upk_as_supported_vendor_update_package() {
         "stderr:\n{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = readable_output(&output.stdout);
     assert!(
         stdout.contains("vendor-update-package"),
         "stdout:\n{stdout}"
@@ -595,19 +823,17 @@ fn fat_identify_explains_high_entropy_structured_blob() {
         "stderr:\n{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = readable_output(&output.stdout);
     assert!(
         stdout.contains("High-entropy structured blob"),
         "stdout:\n{stdout}"
     );
     assert!(
-        stdout.contains("compression or encryption is likely"),
-        "stdout:\n{stdout}"
+        !stdout.contains("Entropy"),
+        "default includes detailed metrics:\n{stdout}"
     );
-    assert!(
-        stdout.contains("low duplicate-block count does not suggest ECB-like repetition"),
-        "stdout:\n{stdout}"
-    );
+    assert!(!stdout.contains("Interpretation:"), "stdout:\n{stdout}");
+    assert!(!stdout.contains("does not suggest"), "stdout:\n{stdout}");
 }
 
 #[test]
@@ -630,11 +856,10 @@ fn fat_identify_reports_moxa_rom_map_kernel_and_cramfs() {
         "stderr:\n{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = readable_output(&output.stdout);
     for needle in [
         "Likely class: structured-firmware-container",
-        "Confidence",
-        "high",
+        "[high]",
         "Moxa ROM map",
         "Firmware version: 5.7",
         "gzip @ 0x00000020",
@@ -937,7 +1162,7 @@ fn fat_identify_file_reports_structured_firmware_container() {
         "stderr:\n{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = readable_output(&output.stdout);
     for needle in [
         "Identification",
         "Likely class: structured-firmware-container",
@@ -970,10 +1195,13 @@ fn fat_identify_reports_partition_interpretation_for_split_root_firmware() {
         "stderr:\n{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = readable_output(&output.stdout);
     for needle in [
-        "squashfs @ 0x001F0040 -> mtdblock2/rootfs -> /",
-        "squashfs @ 0x005C0040 -> mtdblock3/app -> likely /system",
+        "squashfs @ 0x001F0040",
+        "mtdblock2/rootfs",
+        "squashfs @ 0x005C0040",
+        "mtdblock3/app",
+        "/system",
         "Partitioning",
         "Source: kernel cmdline (lzma @ 0x00000080)",
         "Flash map: 8 MTD partitions, 16.00 MiB (16,777,216 bytes) total",
@@ -1058,7 +1286,7 @@ fn fat_identify_elf_reports_header_summary() {
         "stderr:\n{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = readable_output(&output.stdout);
     for needle in [
         "Likely class: executable-binary",
         "ELF64 little-endian",
@@ -1174,7 +1402,7 @@ fn fat_identify_reports_unknown_for_unrecognized_directory() {
         "stderr:\n{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = readable_output(&output.stdout);
     assert!(
         stdout.contains("Likely class: unknown"),
         "expected unknown directory class, got:\n{stdout}"
@@ -1203,7 +1431,7 @@ fn fat_identify_rootfs_directory_reports_markers_without_next_steps() {
         "stderr:\n{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = readable_output(&output.stdout);
     for needle in [
         "Likely class: rootfs-directory",
         "Rootfs markers:",
@@ -1246,17 +1474,20 @@ fn fat_identify_directory_with_firmware_blobs_reports_collection() {
         "stderr:\n{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = readable_output(&output.stdout);
     for needle in [
         "Likely class: firmware-blob-collection",
         "Candidate firmware blobs: 2",
-        "1.00 MiB (1,048,576 bytes) per file",
         "a.bin",
         "b.bin",
     ] {
         assert!(stdout.contains(needle), "missing {needle} in:\n{stdout}");
     }
     assert!(!stdout.contains("Next steps"), "stdout:\n{stdout}");
+    assert!(
+        !stdout.contains("Shallow directory scan"),
+        "stdout:\n{stdout}"
+    );
 }
 
 #[test]
@@ -1328,7 +1559,7 @@ fn fat_identify_reports_opaque_wrapper_evidence_without_guidance() {
         "stderr:\n{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = readable_output(&output.stdout);
     assert!(
         stdout.contains("Likely class: opaque-wrapper-likely"),
         "stdout:\n{stdout}"
@@ -1356,11 +1587,8 @@ fn fat_identify_renders_human_readable_byte_sizes() {
         "stderr:\n{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("7.75 MiB (8,128,512 bytes) analyzed"),
-        "stdout:\n{stdout}"
-    );
+    let stdout = readable_output(&output.stdout);
+    assert!(stdout.contains("Size: 7.75 MiB"), "stdout:\n{stdout}");
 }
 
 #[test]
@@ -1379,10 +1607,10 @@ fn fat_identify_reports_mcu_firmware_without_requiring_inspect_mcu() {
         "stderr:\n{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = readable_output(&output.stdout);
     for needle in [
         "Likely class: mcu-firmware-likely",
-        "MCU signal",
+        "MCU: ARM Cortex-M",
         "ARM Cortex-M",
         "STM32H7",
         "Base hypothesis: 0x08000000",
@@ -1413,7 +1641,7 @@ fn fat_identify_suppresses_mcu_signal_for_opaque_wrapper_with_ivt_like_header() 
         "stderr:\n{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = readable_output(&output.stdout);
     assert!(
         stdout.contains("Likely class: opaque-wrapper-likely"),
         "stdout:\n{stdout}"
@@ -1422,8 +1650,8 @@ fn fat_identify_suppresses_mcu_signal_for_opaque_wrapper_with_ivt_like_header() 
         !stdout.contains("ARM Cortex-M"),
         "unexpected MCU summary in:\n{stdout}"
     );
-    assert!(stdout.contains("MCU signal"), "stdout:\n{stdout}");
-    assert!(stdout.contains("not indicated"), "stdout:\n{stdout}");
+    assert!(!stdout.contains("MCU:"), "stdout:\n{stdout}");
+    assert!(!stdout.contains("not indicated"), "stdout:\n{stdout}");
     assert!(!stdout.contains("Next steps"), "stdout:\n{stdout}");
 }
 
@@ -1443,10 +1671,345 @@ fn fat_bare_file_path_routes_to_identify() {
         "stderr:\n{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = readable_output(&output.stdout);
     assert!(stdout.contains("Identification"), "stdout:\n{stdout}");
     assert!(
         stdout.contains("structured-firmware-container"),
         "stdout:\n{stdout}"
+    );
+}
+
+fn strip_terminal_style(text: &str) -> String {
+    let mut plain = String::new();
+    let mut chars = text.chars();
+    while let Some(ch) = chars.next() {
+        if ch == '\u{1b}' && chars.next() == Some('[') {
+            for code in chars.by_ref() {
+                if code.is_ascii_alphabetic() {
+                    break;
+                }
+            }
+        } else {
+            plain.push(ch);
+        }
+    }
+    plain
+}
+
+fn identify_presentation(file: &std::path::Path, color: &str, json: bool) -> String {
+    identify_presentation_with_details(file, color, json, false)
+}
+
+fn identify_presentation_with_details(
+    file: &std::path::Path,
+    color: &str,
+    json: bool,
+    details: bool,
+) -> String {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_fat"));
+    command
+        .args(["identify", file.to_str().unwrap()])
+        .env("FAT_COLOR", color)
+        .env("COLUMNS", "100")
+        .env_remove("NO_COLOR");
+    if json {
+        command.arg("--json");
+    }
+    if details {
+        command.arg("--details");
+    }
+    let output = command.output().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).unwrap()
+}
+
+#[test]
+fn identify_color_and_plain_share_content_without_invented_confidence_percentages() {
+    let dir = tempdir().unwrap();
+    let file = dir.path().join("unlabeled.bin");
+    std::fs::write(&file, build_rom_blob()).unwrap();
+    let plain = identify_presentation_with_details(&file, "never", false, true);
+    let colored = identify_presentation_with_details(&file, "always", false, true);
+    assert!(
+        colored.contains('\u{1b}'),
+        "forced color should style the same report"
+    );
+    assert!(!plain.contains('\u{1b}'));
+    assert_eq!(strip_terminal_style(&colored), plain);
+    assert_eq!(
+        strip_terminal_style(&identify_presentation(&file, "always", false)),
+        identify_presentation(&file, "never", false),
+        "color must preserve compact overview content and layout"
+    );
+    for required in [
+        "Identification",
+        "Image",
+        "Envelope",
+        "Metric",
+        "Value",
+        "ARM Cortex-M",
+        "File offset",
+        "Encoding",
+        "ascii",
+        "utf-16le",
+        "LPC134X",
+        "0x300",
+    ] {
+        assert!(plain.contains(required), "missing {required}: {plain}");
+    }
+    assert_eq!(
+        plain.matches("LPC134X").count(),
+        1,
+        "identical identity text should be grouped"
+    );
+    assert_eq!(
+        plain.matches("LPC13XX").count(),
+        1,
+        "identical wide identity text should be grouped"
+    );
+    assert!(
+        plain.contains("0x4300") && plain.contains("0x4380"),
+        "grouping must retain every file offset"
+    );
+    assert!(
+        !plain.contains("75%"),
+        "qualitative confidence is not a measured percentage"
+    );
+    assert!(
+        !plain.contains("50%"),
+        "qualitative confidence is not a measured percentage"
+    );
+    assert!(
+        !colored.contains('╭'),
+        "do not enclose the report in a large panel"
+    );
+    assert!(!plain.contains("Next steps"));
+    assert!(!plain.contains("fat inspect-mcu"));
+    let plain_json: Value =
+        serde_json::from_str(&identify_presentation(&file, "never", true)).unwrap();
+    let color_json: Value =
+        serde_json::from_str(&identify_presentation(&file, "always", true)).unwrap();
+    assert_eq!(
+        plain_json, color_json,
+        "presentation controls must not change report data"
+    );
+}
+
+#[test]
+fn identify_narrow_no_color_report_keeps_identity_evidence_readable() {
+    let dir = tempdir().unwrap();
+    let file = dir.path().join("anonymous.bin");
+    std::fs::write(&file, build_rom_blob()).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_fat"))
+        .args(["identify", file.to_str().unwrap(), "--details"])
+        .env("FAT_COLOR", "auto")
+        .env("NO_COLOR", "1")
+        .env("COLUMNS", "43")
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert!(!text.contains('\u{1b}'));
+    assert!(
+        text.lines().all(|line| line.chars().count() <= 43),
+        "narrow report overflow: {text}"
+    );
+    let content = readable_output(text.as_bytes());
+    for required in [
+        "ARM Cortex-M",
+        "NXP LPC134x",
+        "0x300",
+        "utf-16le",
+        "LPC13XX",
+    ] {
+        assert!(content.contains(required), "missing {required}: {text}");
+    }
+    assert!(!text.contains("Next steps"));
+}
+
+#[test]
+fn identify_default_is_compact_and_details_preserve_evidence_and_json() {
+    let dir = tempdir().unwrap();
+    let file = dir.path().join("anonymous.bin");
+    std::fs::write(&file, build_rom_blob()).unwrap();
+    let plain = identify_presentation(&file, "never", false);
+    let content = readable_output(plain.as_bytes());
+    assert!(
+        plain.starts_with("Identification · anonymous.bin"),
+        "{plain}"
+    );
+    assert!(
+        !plain.contains(file.to_str().unwrap()),
+        "default should use the basename: {plain}"
+    );
+    assert!(
+        plain.lines().count() <= 15,
+        "default overview is too long: {plain}"
+    );
+    for omitted in [
+        "Note:",
+        "Family evidence",
+        "plausible SRAM",
+        "collection is bounded",
+        "Unexplained duplicates",
+        "Entropy",
+        "Uniform file range",
+        "Vector offset",
+        "Initial SP",
+        "Identity text",
+        "Encoding",
+    ] {
+        assert!(!plain.contains(omitted), "unnecessary {omitted}: {plain}");
+    }
+    for retained in [
+        "ARM Cortex-M",
+        "NXP LPC134x",
+        "corroborated",
+        "Likely class: mcu-firmware-likely [medium]",
+        "Size: 32.00 KiB",
+        "2 exact copies of 16.00 KiB",
+        "Likely boot ROM",
+        "Base hypothesis: 0x1FFF0000",
+        "Reset handler: 0x1FFF0104",
+    ] {
+        assert!(content.contains(retained), "missing {retained}: {plain}");
+    }
+    let details = identify_presentation_with_details(&file, "never", false, true);
+    let detail_content = readable_output(details.as_bytes());
+    assert!(details.lines().count() > plain.lines().count());
+    assert!(
+        details
+            .split_whitespace()
+            .collect::<String>()
+            .contains(file.to_str().unwrap()),
+        "details should preserve the full input path: {details}"
+    );
+    for retained in [
+        "32.00 KiB (32,768 bytes)",
+        "16.00 KiB (16,384 bytes)",
+        "Entropy",
+        "Uniform file range",
+        "Vector offset",
+        "Initial SP",
+        "0x10000FFC",
+        "0x1FFF0105",
+        "Identity text",
+        "ascii",
+        "utf-16le",
+        "0x300",
+        "0x4300",
+    ] {
+        assert!(
+            detail_content.contains(retained),
+            "missing {retained}: {details}"
+        );
+    }
+    assert!(
+        !details.contains("Notes") && !details.contains("Limits"),
+        "{details}"
+    );
+    let json_text = identify_presentation(&file, "never", true);
+    assert_eq!(
+        json_text,
+        identify_presentation_with_details(&file, "never", true, true),
+        "--details must not change serialized output"
+    );
+    let json: Value = serde_json::from_str(&json_text).unwrap();
+    assert!(!json["mcu"]["identification"]["notes"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+    assert!(!json["mcu"]["identification"]["family_evidence"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+}
+
+#[test]
+fn identify_details_show_all_retained_uniform_regions_and_collection_truncation() {
+    let dir = tempdir().unwrap();
+    let file = dir.path().join("uniform-regions.bin");
+    for count in [4u8, 6, 70] {
+        let bytes = (0..count)
+            .flat_map(|byte| vec![byte; 128])
+            .collect::<Vec<_>>();
+        std::fs::write(&file, bytes).unwrap();
+        let plain = identify_presentation_with_details(&file, "never", false, true);
+        let content = readable_output(plain.as_bytes());
+        let json: Value =
+            serde_json::from_str(&identify_presentation(&file, "never", true)).unwrap();
+        let repetition = &json["envelope"]["repetition"];
+        let collected = repetition["uniform_regions"].as_array().unwrap().len();
+        assert_eq!(collected, usize::from(count).min(64));
+        assert_eq!(repetition["uniform_regions_truncated"], count > 64);
+        let last_range = format!("[0x{:X}, 0x{:X})", (collected - 1) * 128, collected * 128);
+        assert!(
+            content.contains(&last_range),
+            "missing {last_range}: {plain}"
+        );
+        if count > 64 {
+            let expected = format!("Shown: {collected} of {collected}+ uniform regions");
+            assert!(content.contains(&expected), "missing {expected}: {plain}");
+        } else {
+            assert!(!content.contains("Shown:"), "{plain}");
+        }
+        assert!(
+            !content.contains("Notes") && !content.contains("Limits"),
+            "{plain}"
+        );
+    }
+}
+
+#[test]
+fn identify_unknown_directory_still_has_classification_without_empty_sections() {
+    let dir = tempdir().unwrap();
+    let plain = identify_presentation(dir.path(), "never", false);
+    let content = readable_output(plain.as_bytes());
+    assert!(content.contains("Likely class: unknown"));
+    assert!(content.contains("Likely class: unknown [low]"));
+    for omitted in [
+        "MCU: ARM Cortex-M",
+        "not indicated",
+        "Summary",
+        "Note:",
+        "not specific enough",
+    ] {
+        assert!(!plain.contains(omitted), "unnecessary {omitted}: {plain}");
+    }
+    let json: Value =
+        serde_json::from_str(&identify_presentation(dir.path(), "never", true)).unwrap();
+    assert!(
+        !json["summary"].as_array().unwrap().is_empty(),
+        "JSON retains diagnostic context"
+    );
+}
+
+#[test]
+fn identify_recognized_architecture_omits_unresolved_family_row() {
+    let dir = tempdir().unwrap();
+    let file = dir.path().join("anonymous.bin");
+    let mut bytes = build_rom_blob();
+    for (index, word) in [0x2000_2000u32, 0x6000_0105, 0x6000_0fa9, 0x6000_0fab]
+        .into_iter()
+        .enumerate()
+    {
+        bytes[index * 4..index * 4 + 4].copy_from_slice(&word.to_le_bytes());
+    }
+    std::fs::write(&file, bytes).unwrap();
+    let plain = identify_presentation(&file, "never", false);
+    assert!(readable_output(plain.as_bytes()).contains("MCU: ARM Cortex-M"));
+    assert!(
+        !plain.contains("Family") && !plain.contains("unresolved"),
+        "{plain}"
+    );
+    let json: Value = serde_json::from_str(&identify_presentation(&file, "never", true)).unwrap();
+    assert_eq!(json["mcu"]["family"], "unresolved");
+    assert_eq!(
+        json["mcu"]["identification"]["family_confidence"],
+        "unresolved"
     );
 }

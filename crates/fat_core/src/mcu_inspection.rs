@@ -15,6 +15,8 @@ pub struct McuInspectionReport {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fast_profile: Option<McuProfile>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identification: Option<McuIdentification>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub degradations: Option<Vec<InspectionDegradation>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image_layout: Option<ImageLayoutReport>,
@@ -26,6 +28,10 @@ pub struct McuInspectionReport {
     pub vector_table: Option<InterruptVectorReport>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub startup_chain: Option<StartupChainReport>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code_analysis: Option<crate::mcu_code::McuCodeReport>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub register_annotations: Option<crate::mcu_registers::RegisterAnnotationReport>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub init_table: Option<InitTableReport>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -79,6 +85,60 @@ pub struct ByteMeasurements {
     pub trailing_uniform_percent: f64,
     pub whole_entropy_bits_per_byte: f64,
     pub content_entropy_bits_per_byte: Option<f64>,
+    #[serde(default)]
+    pub repetition: RepetitionMeasurements,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct UniformRegion {
+    pub offset: u64,
+    pub length: u64,
+    pub byte: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct RepetitionMeasurements {
+    pub block_size: usize,
+    pub total_block_count: usize,
+    pub duplicate_block_count: usize,
+    pub repeated_unit_bytes: Option<u64>,
+    pub copies: usize,
+    pub duplicate_blocks_from_copies: usize,
+    pub duplicate_uniform_blocks: usize,
+    pub unexplained_duplicate_blocks: usize,
+    pub uniform_regions: Vec<UniformRegion>,
+    pub uniform_regions_truncated: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct McuVectorCandidate {
+    pub offset: u64,
+    pub initial_sp: u32,
+    pub reset_vector: u32,
+    pub accepted: bool,
+    pub confidence: String,
+    pub evidence: Vec<String>,
+    pub contradictions: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct McuIdentityString {
+    pub offset: u64,
+    pub encoding: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct McuIdentification {
+    pub architecture: Option<String>,
+    pub architecture_confidence: String,
+    pub family: Option<String>,
+    pub family_confidence: String,
+    pub family_evidence: Vec<String>,
+    pub image_role: Option<String>,
+    pub vector_candidates: Vec<McuVectorCandidate>,
+    pub identity_strings: Vec<McuIdentityString>,
+    pub notes: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
@@ -132,6 +192,9 @@ pub struct ImageLayoutReport {
     pub kind: Interpretation<ImageLayoutKind>,
     #[serde(default)]
     pub candidate_offsets: Vec<u32>,
+    /// Address corresponding to the selected vector table's file offset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vector_address: Option<u32>,
     #[serde(default)]
     pub rationale: Vec<String>,
     #[serde(default)]
@@ -273,6 +336,7 @@ pub enum InterruptHandlerKind {
     Interrupt,
     DefaultHandler,
     Reserved,
+    Unpopulated,
     #[default]
     Unknown,
 }
@@ -284,6 +348,10 @@ pub struct InterruptVectorEntry {
     #[serde(default)]
     pub handler_kind: InterruptHandlerKind,
     pub family_label: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub core_exception: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub external_irq_number: Option<u16>,
     #[serde(default)]
     pub evidence_ids: Vec<String>,
 }
@@ -297,8 +365,19 @@ pub struct RepeatedVectorTarget {
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct InterruptVectorReport {
     pub entry_count: usize,
+    /// Legacy field name: populated core and external handler pointers, not activity.
     pub active_count: usize,
     pub default_handler_count: usize,
+    /// Populated core handler entries, including Reset; not runtime activity.
+    #[serde(default)]
+    pub core_exception_count: usize,
+    /// Populated external vector entries, not the device's IRQ capacity.
+    #[serde(default)]
+    pub external_irq_count: usize,
+    #[serde(default)]
+    pub reserved_entry_count: usize,
+    #[serde(default)]
+    pub unpopulated_entry_count: usize,
     #[serde(default)]
     pub scanned_word_count: usize,
     #[serde(default)]
@@ -903,6 +982,7 @@ pub struct McuProfile {
     pub initial_sp: u32,
     pub reset_vector: u32,
     pub flash_base: u32,
+    /// Legacy field name: populated handler pointers, including Reset, not activity.
     pub active_interrupt_count: usize,
     pub total_interrupt_slots: usize,
     pub code_size: Option<u64>,

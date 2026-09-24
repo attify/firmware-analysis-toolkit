@@ -55,17 +55,23 @@ pub(crate) struct ContainerProbe {
     pub(crate) envelope: envelope_cmd::EnvelopeReport,
 }
 
-/// Map magic to an actionable handler. This is deliberately not a general
+/// Map format signatures to an actionable handler. This is deliberately not a general
 /// signature table: every returned variant must have an extraction arm.
 pub(crate) fn detect_known_container(bytes: &[u8]) -> Option<KnownContainer> {
     match bytes.get(..4)? {
-        b"UTPK" => Some(KnownContainer::Utpk),
+        b"UTPK"
+            if bytes.get(
+                unitree_upk::HEADER_LEN..unitree_upk::HEADER_LEN + unitree_upk::TEA_MARKER.len(),
+            ) == Some(unitree_upk::TEA_MARKER.as_slice()) =>
+        {
+            Some(KnownContainer::Utpk)
+        }
         _ => None,
     }
 }
 
-/// Probe a bounded prefix and consult the actionable-container table only when
-/// envelope analysis says the sample is encrypted-like. Unknown inputs remain
+/// Probe a bounded prefix for known format signatures independently of byte
+/// statistics. Repetition and entropy cannot veto a format parser. Unknown inputs remain
 /// eligible for native and generic extraction; the envelope is retained for a
 /// factual fallback diagnostic if every extractor recovers zero files.
 pub(crate) fn probe_known_container_file(path: &Path) -> DynResult<ContainerProbe> {
@@ -75,10 +81,7 @@ pub(crate) fn probe_known_container_file(path: &Path) -> DynResult<ContainerProb
         .take(CONTAINER_PROBE_BYTES as u64)
         .read_to_end(&mut sample)?;
     let envelope = envelope_cmd::analyze_envelope(&sample, None);
-    let container = envelope
-        .is_encrypted_like()
-        .then(|| detect_known_container(&sample))
-        .flatten();
+    let container = detect_known_container(&sample);
     Ok(ContainerProbe {
         container,
         envelope,
@@ -234,10 +237,11 @@ mod tests {
 
     #[test]
     fn detection_returns_an_actionable_handler() {
-        assert_eq!(
-            detect_known_container(b"UTPK encrypted payload"),
-            Some(KnownContainer::Utpk)
-        );
+        let mut bytes = vec![0; fat_package::unitree_upk::HEADER_LEN];
+        bytes[..4].copy_from_slice(b"UTPK");
+        bytes.extend_from_slice(&fat_package::unitree_upk::TEA_MARKER);
+        assert_eq!(detect_known_container(&bytes), Some(KnownContainer::Utpk));
+        assert_eq!(detect_known_container(b"UTPK plain text"), None);
         assert_eq!(detect_known_container(b"hsqs structured payload"), None);
         assert_eq!(detect_known_container(b"UTP"), None);
     }

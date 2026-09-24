@@ -19,6 +19,7 @@ fn mcu_inspection_report_round_trips() {
             trailing_uniform_percent: 50.0,
             whole_entropy_bits_per_byte: 4.2,
             content_entropy_bits_per_byte: Some(7.8),
+            repetition: Default::default(),
         }),
         analysis_provenance: AnalysisProvenance {
             backend: "native-mcu-inspect".into(),
@@ -28,6 +29,9 @@ fn mcu_inspection_report_round_trips() {
             family_selection_mode: "auto".into(),
             notes: vec!["unit test".into()],
         },
+        identification: None,
+        code_analysis: None,
+        register_annotations: None,
         fast_profile: Some(McuProfile {
             architecture: "ARM Cortex-M".into(),
             chip_family: "STM32H7".into(),
@@ -55,6 +59,7 @@ fn mcu_inspection_report_round_trips() {
                 evidence_ids: vec!["ev-1".into()],
             },
             candidate_offsets: vec![0x1000],
+            vector_address: None,
             rationale: vec!["layout unknown".into()],
             evidence_ids: vec!["ev-1".into()],
         }),
@@ -77,6 +82,10 @@ fn mcu_inspection_report_round_trips() {
             entry_count: 2,
             active_count: 2,
             default_handler_count: 0,
+            core_exception_count: 1,
+            external_irq_count: 0,
+            reserved_entry_count: 0,
+            unpopulated_entry_count: 0,
             scanned_word_count: 2,
             handler_candidate_count: 1,
             unique_aligned_target_count: 1,
@@ -91,6 +100,8 @@ fn mcu_inspection_report_round_trips() {
                 address: 0x2401_A058,
                 handler_kind: InterruptHandlerKind::InitialStackPointer,
                 family_label: None,
+                core_exception: None,
+                external_irq_number: None,
                 evidence_ids: vec!["ev-4".into()],
             }],
             provenance: Some(SectionProvenance {
@@ -322,6 +333,23 @@ fn mcu_inspection_report_round_trips() {
         assert!(json.get(key).is_some(), "missing key {key}");
     }
 
+    let mut legacy = json.clone();
+    let vectors = legacy["vector_table"].as_object_mut().unwrap();
+    for key in [
+        "core_exception_count",
+        "external_irq_count",
+        "reserved_entry_count",
+        "unpopulated_entry_count",
+    ] {
+        vectors.remove(key);
+    }
+    let legacy_report: McuInspectionReport = serde_json::from_value(legacy).unwrap();
+    assert!(legacy_report.code_analysis.is_none());
+    assert!(legacy_report.register_annotations.is_none());
+    assert_eq!(
+        legacy_report.vector_table.unwrap().unpopulated_entry_count,
+        0
+    );
     let round_trip: McuInspectionReport = serde_json::from_value(json).unwrap();
     assert_eq!(round_trip, report);
 }
@@ -334,6 +362,9 @@ fn mcu_inspection_report_omits_unset_sections() {
         artifact_identity: None,
         byte_measurements: None,
         analysis_provenance: AnalysisProvenance::default(),
+        identification: None,
+        code_analysis: None,
+        register_annotations: None,
         fast_profile: None,
         degradations: None,
         image_layout: None,
@@ -366,6 +397,8 @@ fn mcu_inspection_report_omits_unset_sections() {
         "unexpected next_steps: {json}"
     );
     for key in [
+        "code_analysis",
+        "register_annotations",
         "artifact_identity",
         "byte_measurements",
         "fast_profile",

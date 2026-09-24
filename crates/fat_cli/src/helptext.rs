@@ -186,6 +186,10 @@ pub fn apply(root: &mut Command) {
             &[
                 ("path", "Path to the file or directory to identify"),
                 ("file", "Path to the file or directory to identify"),
+                (
+                    "details",
+                    "Expand the overview with detailed findings and measurements",
+                ),
                 ("json", "Emit machine-readable JSON instead of text"),
             ],
         );
@@ -1007,6 +1011,10 @@ pub fn apply(root: &mut Command) {
                     ("file", "Path to a raw MCU firmware binary"),
                     ("base", "Optional base address override such as 0x08000000"),
                     ("family", "Optional family-pack hint such as STM32H7"),
+                    (
+                        "details",
+                        "Expand image, startup, interrupt, and hardware details",
+                    ),
                     ("json", "Emit machine-readable JSON instead of text"),
                 ],
             );
@@ -2054,16 +2062,19 @@ Tips:
 "#;
 
 const IDENTIFY_AFTER: &str = r#"Syntax:
-  fat identify [<path> | --file <path>] [--json]
+  fat identify [<path> | --file <path>] [--details] [--json]
 
 What it does:
   Identifies a file or directory, summarizes the strongest evidence that the
   target is structured firmware, executable code, or a simple directory tree.
   It can surface known top-level headers, high-entropy compression/encryption
   hints, ELF header facts, rootfs markers, and shallow firmware blob collections.
+  The default view highlights identity, image structure, and address mapping.
+  Use --details for supporting tables, or --json for the full analysis report.
 
 Examples:
   fat identify --file ./firmware.bin
+  fat identify ./firmware.bin --details
   fat identify ./firmware.bin --json
 
 Tips:
@@ -2569,21 +2580,21 @@ What it does:
 "#;
 
 const INSPECT_MCU_AFTER: &str = r#"Syntax:
-  fat inspect mcu --file <firmware.bin> [--base <hex>] [--family <name>] [--json]
+  fat inspect mcu --file <firmware.bin> [--base <hex>] [--family <name>] [--details] [--json]
 
 What it does:
-  Builds an evidence-oriented MCU inspection report from a raw firmware blob,
-  including address hypotheses, startup-chain reconstruction, execution model,
-  and conservative security-control hints.
+  Summarizes identity and image mapping, startup candidates, populated
+  interrupts, and decoded hardware accesses from a raw MCU firmware image.
+  Related findings appear together; empty sections are omitted.
 
-  The startup walk follows literal-pool indirect branches out of the reset stub
-  and parses the init descriptor table the C runtime walks, recovering the
-  .data source/destination, the zero-initialised .bss span, and the per-record
-  handler kind. Both the CMSIS __copy_table/__zero_table layout (12-byte and
-  8-byte strides) and the scatter-load layout (16-byte records with a handler
-  pointer) are recognised. When the descriptor coverage lands exactly on the
-  initial stack pointer, the report says so; that cross-check is reported, not
-  required.
+  Use --details to expand these groups with vector entries, candidate functions,
+  instruction locations, address constants, identity strings, and recovered
+  initialization tables. Use --json for the full structured analysis report;
+  --details does not change JSON output.
+
+Examples:
+  fat inspect mcu --file ./firmware.bin
+  fat inspect mcu --file ./firmware.bin --details
 "#;
 
 const INSPECT_PERIPHERAL_MAP_AFTER: &str = r#"Syntax:

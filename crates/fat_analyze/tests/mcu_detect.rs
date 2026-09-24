@@ -1,5 +1,81 @@
 use fat_analyze::mcu::detect_cortex_m_ivt;
 
+#[test]
+fn boot_rom_vectors_are_recognized_without_stm32_attribution() {
+    let bytes = build_ivt(0x1000_0ffc, 0x1fff_0105, 0x1fff_0fa9, 0x1fff_0fab, 0);
+    let profile = detect_cortex_m_ivt(&bytes).expect("ROM vectors must be recognized");
+    assert_eq!(profile.architecture, "ARM Cortex-M");
+    assert!(!profile.chip_family.contains("STM32"));
+    assert_eq!(profile.flash_base, 0x1fff_0000);
+}
+
+#[test]
+fn plausible_header_does_not_override_contradictory_exception_vectors() {
+    let mut bytes = build_ivt(0x2000_2000, 0x0800_0101, 0x0800_0201, 0x0800_0301, 0);
+    for slot in 4..16 {
+        bytes[slot * 4..slot * 4 + 4].copy_from_slice(&0x4567_89aau32.to_le_bytes());
+    }
+    assert!(detect_cortex_m_ivt(&bytes).is_none());
+}
+
+#[test]
+fn unaligned_stack_pointer_is_not_a_valid_vector_table() {
+    let bytes = build_ivt(0x2000_2001, 0x0800_0101, 0x0800_0201, 0x0800_0301, 0);
+    assert!(detect_cortex_m_ivt(&bytes).is_none());
+}
+
+#[test]
+fn regression_boot_rom_cannot_be_used_as_the_initial_stack() {
+    let bytes = build_ivt(
+        0x1fff_0104,
+        0x1fff_0105,
+        0x1fff_0fa9,
+        0x1fff_0fab,
+        0x1fff_0fb1,
+    );
+    assert!(detect_cortex_m_ivt(&bytes).is_none());
+}
+
+#[test]
+fn short_vector_candidate_never_gets_high_confidence() {
+    let bytes = build_ivt(
+        0x2000_2000,
+        0x0800_0011,
+        0x0800_0021,
+        0x0800_0031,
+        0x4567_89ab,
+    );
+    let report = fat_analyze::mcu::identify_mcu(&bytes);
+    assert_ne!(report.architecture_confidence, "high");
+    assert!(report.vector_candidates[0]
+        .evidence
+        .iter()
+        .any(|e| e.contains("partial vector table")));
+}
+
+#[test]
+fn regression_user_base_bounds_partial_tables_in_unfamiliar_code_regions() {
+    for base in [0x6000_0000u32, 0x0804_0000] {
+        let mut bytes = Vec::new();
+        for word in [
+            0x2000_2000,
+            base + 0x21,
+            base + 0x25,
+            base + 0x29,
+            base + 0x25,
+            base + 0x25,
+            base + 0x25,
+            0,
+        ] {
+            bytes.extend_from_slice(&word.to_le_bytes());
+        }
+        for _ in 0..16 {
+            bytes.extend_from_slice(&0x4770_d100u32.to_le_bytes());
+        }
+        assert!(fat_analyze::mcu::detect_cortex_m_ivt_with_base(&bytes, Some(base)).is_some());
+    }
+}
+
 // ---------- Helper: build a minimal valid IVT byte buffer ----------
 
 /// Build a 1024-byte buffer with a valid Cortex-M IVT at the start.
@@ -175,8 +251,8 @@ fn test_active_interrupt_count() {
         0x0800_7B81,
         0x0000_0000,
     );
-    // Set slots 4..8 to non-zero handler addresses
-    for i in 4..8 {
+    // Populate four actual core exception slots; slot 7 is reserved.
+    for i in [4, 5, 6, 11] {
         let addr: u32 = 0x0800_1001;
         bytes[i * 4..i * 4 + 4].copy_from_slice(&addr.to_le_bytes());
     }
@@ -450,4 +526,43 @@ fn test_lowercase_ethernet_detection() {
         "lowercase 'ethernet' in paths should be detected; got: {:?}",
         profile.peripheral_hints
     );
+}
+
+#[test]
+fn regression_fast_vector_count_stops_before_executable_bytes() {
+    let base = 0x1fff_0000u32;
+    let mut bytes = vec![0u8; 4096];
+    bytes[..4].copy_from_slice(&0x1000_0ffcu32.to_le_bytes());
+    for index in [1usize, 2, 3, 4, 5, 6, 11, 12, 14, 15, 38, 39, 63, 64] {
+        let handler = if index == 1 {
+            base + 0x105
+        } else {
+            base + 0x801
+        };
+        bytes[index * 4..index * 4 + 4].copy_from_slice(&handler.to_le_bytes());
+    }
+    // Plausible-looking pointer data after the first mapped handler is code/data,
+    // not another hundred IRQ vectors.
+    for word in bytes[0x104..].chunks_exact_mut(4) {
+        word.copy_from_slice(&(base + 0x901).to_le_bytes());
+    }
+    let profile = detect_cortex_m_ivt(&bytes).expect("boot ROM vectors");
+    assert_eq!(profile.active_interrupt_count, 14);
+    assert!(profile.total_interrupt_slots <= 65);
+}
+
+#[test]
+fn regression_reserved_checksum_is_not_an_active_handler() {
+    let mut bytes = build_ivt(0x2000_2000, 0x0800_0101, 0x0800_0201, 0x0800_0301, 0);
+    // A reserved/checksum slot can even look exactly like a Thumb pointer.
+    bytes[7 * 4..8 * 4].copy_from_slice(&0x0800_0401u32.to_le_bytes());
+    let profile = detect_cortex_m_ivt(&bytes).unwrap();
+    assert_eq!(profile.active_interrupt_count, 3);
+}
+
+#[test]
+fn documented_executable_ram_can_corroborate_rom_reset_vectors() {
+    let bytes = build_ivt(0x1000_0ffc, 0x1fff_0105, 0x1000_0101, 0x1000_0201, 0);
+    let profile = detect_cortex_m_ivt(&bytes).expect("documented executable regions");
+    assert_eq!(profile.active_interrupt_count, 3);
 }

@@ -7,16 +7,18 @@ use fat_core::mcu_inspection::{
     EvidenceKind, EvidenceLocation, EvidenceRecord, ExecutionModelEvidence, ExecutionModelKind,
     ExecutionModelMetrics, ExecutionModelReport, ImageLayoutKind, ImageLayoutReport,
     ImageMeasurements, InspectionDegradation, IntegrityCheckReport, Interpretation,
-    InterruptHandlerKind, InterruptVectorEntry, InterruptVectorReport, MainEntryReport,
-    McuInspectionReport, PeripheralEvidenceSource, PeripheralMapReport, PeripheralSurfaceReport,
-    PeripheralUse, RegisterBlockObservation, RepeatedVectorTarget, SectionProvenance,
-    SecuritySurfaceSummary, SharedAccessPattern, SharedStateEdge, SharedStateFinding,
-    SharedStateRiskReport, SharedStateRiskTag, StartupChainReport, StartupRole, StartupStep,
-    WriteAuthorityReport, MCU_INSPECTION_SCHEMA_VERSION,
+    InterruptHandlerKind, InterruptVectorReport, MainEntryReport, McuInspectionReport,
+    PeripheralEvidenceSource, PeripheralMapReport, PeripheralSurfaceReport, PeripheralUse,
+    RegisterBlockObservation, SectionProvenance, SecuritySurfaceSummary, SharedAccessPattern,
+    SharedStateEdge, SharedStateFinding, SharedStateRiskReport, SharedStateRiskTag,
+    StartupChainReport, StartupRole, StartupStep, WriteAuthorityReport,
+    MCU_INSPECTION_SCHEMA_VERSION,
 };
 
 use crate::image_measurements::measure_image;
-use crate::mcu::detect_cortex_m_ivt;
+use crate::mcu::{
+    detect_cortex_m_ivt, detect_cortex_m_ivt_with_base, identify_mcu_with_base, vector_candidates,
+};
 use crate::mcu_family::{
     convert_role, enrich_peripheral_map, enrich_security_roles, enrich_vector_table,
     resolve_family_resolution, FamilyResolution, FamilyResolutionMode,
@@ -41,7 +43,20 @@ pub fn inspect_file(request: &McuInspectRequest) -> Result<McuInspectionReport, 
         .map_err(|err| format!("failed to read {}: {err}", request.file.display()))?;
     let measurements = measure_image(request.file.display().to_string(), &bytes);
 
-    let fast_profile = detect_cortex_m_ivt(&bytes);
+    let identification = identify_mcu_with_base(&bytes, request.user_base);
+    let vector_offset = identification
+        .vector_candidates
+        .iter()
+        .find(|c| c.accepted)
+        .map(|c| c.offset as usize);
+    let mut fast_profile = vector_offset
+        .and_then(|offset| detect_cortex_m_ivt_with_base(&bytes[offset..], request.user_base));
+    if let (Some(profile), Some(family)) = (fast_profile.as_mut(), identification.family.as_ref()) {
+        profile.chip_family = family.clone();
+        if identification.family_confidence == "corroborated" {
+            profile.chip_family_confidence = 85;
+        }
+    }
     let family_resolution = resolve_family_resolution(
         request.user_family.as_deref(),
         fast_profile
@@ -57,9 +72,8 @@ pub fn inspect_file(request: &McuInspectRequest) -> Result<McuInspectionReport, 
     };
 
     let mut degradations = Vec::new();
-    if fast_profile.is_none() {
+    if identification.architecture.is_none() {
         degradations.push(InspectionDegradation::WeakSignal);
-        degradations.push(InspectionDegradation::NonCortexMLikely);
     }
 
     let mut provenance = AnalysisProvenance {
@@ -115,7 +129,8 @@ pub fn inspect_file(request: &McuInspectRequest) -> Result<McuInspectionReport, 
 
     let mut address_hypotheses = build_address_hypotheses(&bytes);
     if let Some(user_base) = request.user_base {
-        if !address_hypotheses.iter().any(|hyp| hyp.base == user_base) {
+        address_hypotheses.retain(|hyp| hyp.base != user_base);
+        {
             address_hypotheses.insert(
                 0,
                 AddressHypothesis {
@@ -132,14 +147,22 @@ pub fn inspect_file(request: &McuInspectRequest) -> Result<McuInspectionReport, 
         }
     }
 
-    if fast_profile.is_some() && address_hypotheses.is_empty() {
+    if identification.architecture.is_some() && address_hypotheses.is_empty() {
         degradations.push(InspectionDegradation::BaseAddressAmbiguous);
     }
 
     let image_layout = if address_hypotheses.is_empty() {
         None
     } else {
-        Some(classify_image_layout(&bytes, &address_hypotheses))
+        Some(classify_layout_candidates(
+            identification
+                .vector_candidates
+                .iter()
+                .filter(|c| c.accepted)
+                .map(|c| c.offset as u32)
+                .collect(),
+            &address_hypotheses,
+        ))
     };
     let vector_table = image_layout.as_ref().and_then(|layout| {
         extract_vector_table_with_resolution(
@@ -150,6 +173,10 @@ pub fn inspect_file(request: &McuInspectRequest) -> Result<McuInspectionReport, 
         )
     });
     let vector_table = vector_table.map(|report| enrich_vector_table(report, &family_resolution));
+    if let (Some(profile), Some(table)) = (fast_profile.as_mut(), vector_table.as_ref()) {
+        profile.active_interrupt_count = table.active_count;
+        profile.total_interrupt_slots = table.entry_count;
+    }
     let startup_chain = image_layout.as_ref().and_then(|layout| {
         extract_startup_chain(&bytes, vector_table.as_ref(), layout, &address_hypotheses)
     });
@@ -174,6 +201,38 @@ pub fn inspect_file(request: &McuInspectRequest) -> Result<McuInspectionReport, 
             initial_sp,
         )
     });
+    let code_analysis = image_layout.as_ref().and_then(|layout| {
+        let table = vector_table.as_ref()?;
+        let reset = table.entries.get(1)?.address & !1;
+        let mut addressing = ImageAddressing::from_layout(reset, layout, bytes.len())?;
+        // Clip only against a selected, corroborated (or explicitly supplied)
+        // profile. Identical file copies alone do not establish address aliases.
+        if identification.family_confidence == "corroborated"
+            || family_resolution.mode == FamilyResolutionMode::UserExact {
+            if let Some(region) = family_resolution.pack.executable_regions.iter()
+                .find(|region| region.contains(addressing.flash_base)) {
+                let mapped_end = u64::from(addressing.vector_offset)
+                    + u64::from(region.end - addressing.flash_base);
+                addressing.image_len = addressing.image_len.min(mapped_end as usize);
+            }
+        }
+        let seeds = table.entries.iter()
+            .filter(|entry| matches!(entry.handler_kind,
+                InterruptHandlerKind::ResetHandler | InterruptHandlerKind::Interrupt))
+            .map(|entry| crate::mcu_code::CodeSeed {
+                address: entry.address & !1,
+                reason: format!("vector-entry-{}", entry.index),
+            }).collect::<Vec<_>>();
+        let mut code = crate::mcu_code::analyze_code(&bytes, &addressing, &seeds, init_table.as_ref());
+        code.notes.push(format!(
+            "Selected mapping: vector file offset 0x{:X} maps to 0x{:08X}; mapped input ends at file offset 0x{:X}.",
+            addressing.vector_offset, addressing.flash_base, addressing.image_len
+        ));
+        Some(code)
+    });
+    let register_annotations = code_analysis
+        .as_ref()
+        .map(|code| crate::mcu_registers::annotate_registers(code, &family_resolution));
     provenance.notes.push(match (&init_table, &startup_chain) {
         (Some(table), _) => format!(
             "init_table=present segments={} records={}",
@@ -283,6 +342,7 @@ pub fn inspect_file(request: &McuInspectRequest) -> Result<McuInspectionReport, 
         byte_measurements: Some(measurements.bytes),
         analysis_provenance: provenance,
         fast_profile,
+        identification: Some(identification),
         degradations: if degradations.is_empty() {
             None
         } else {
@@ -296,6 +356,8 @@ pub fn inspect_file(request: &McuInspectRequest) -> Result<McuInspectionReport, 
         },
         vector_table,
         startup_chain,
+        code_analysis,
+        register_annotations,
         init_table,
         sram_partitions,
         system_init_effects,
@@ -439,10 +501,22 @@ pub fn build_address_hypotheses(bytes: &[u8]) -> Vec<AddressHypothesis> {
 
     for (index, candidate) in candidates.into_iter().enumerate() {
         let reset_addr = candidate.profile.reset_vector & !1;
-        let aligned_base = align_down(reset_addr, 0x2000);
+        let region_base =
+            crate::mcu::infer_code_base(reset_addr).expect("profile requires known mapping");
+        let remaining = bytes.len().saturating_sub(candidate.offset);
+        let aligned_base = if (reset_addr - region_base) as usize >= remaining {
+            align_down(reset_addr, 0x2000)
+        } else {
+            region_base
+        };
         let mut rationale = vec![
             format!("vector_offset=0x{:x}", candidate.offset),
             format!("reset=0x{reset_addr:08x}"),
+            if aligned_base == region_base {
+                "known executable region base; reset maps inside the supplied bytes".into()
+            } else {
+                "8 KiB-aligned relocation hypothesis; original region base places reset outside the supplied bytes".into()
+            },
         ];
         if candidate.offset == 0 {
             rationale.push("vector table found at image start".to_string());
@@ -452,7 +526,13 @@ pub fn build_address_hypotheses(bytes: &[u8]) -> Vec<AddressHypothesis> {
 
         hypotheses.push(AddressHypothesis {
             base: aligned_base,
-            confidence: if candidate.offset == 0 { 0.85 } else { 0.7 },
+            confidence: if aligned_base != region_base {
+                0.6
+            } else if candidate.offset == 0 {
+                0.85
+            } else {
+                0.7
+            },
             rationale,
             evidence_ids: Vec::new(),
             is_primary: index == 0,
@@ -463,7 +543,15 @@ pub fn build_address_hypotheses(bytes: &[u8]) -> Vec<AddressHypothesis> {
 }
 
 pub fn classify_image_layout(bytes: &[u8], hypotheses: &[AddressHypothesis]) -> ImageLayoutReport {
-    let candidate_offsets = vector_candidate_offsets(bytes);
+    classify_layout_candidates(vector_candidate_offsets(bytes), hypotheses)
+}
+
+// Preserve candidate selection from identification. An inferred mapping must
+// not feed back into discovery and silently select a different vector table.
+fn classify_layout_candidates(
+    candidate_offsets: Vec<u32>,
+    hypotheses: &[AddressHypothesis],
+) -> ImageLayoutReport {
     let (kind, confidence, rationale) = if let Some(offset) = candidate_offsets.first().copied() {
         if offset > 0 {
             (
@@ -475,7 +563,15 @@ pub fn classify_image_layout(bytes: &[u8], hypotheses: &[AddressHypothesis]) -> 
             )
         } else {
             let primary_base = hypotheses.first().map(|hyp| hyp.base).unwrap_or_default();
-            if primary_base == 0x0800_0000 {
+            if fat_family::mcu_packs::executable_region(primary_base)
+                .is_some_and(|region| region.kind == "boot-rom")
+            {
+                (
+                    ImageLayoutKind::BootloaderOnlyImage,
+                    0.8,
+                    vec!["vector mapping lies in a documented boot ROM region".into()],
+                )
+            } else if primary_base == 0x0800_0000 {
                 (
                     ImageLayoutKind::FullFlashDump,
                     0.78,
@@ -505,6 +601,7 @@ pub fn classify_image_layout(bytes: &[u8], hypotheses: &[AddressHypothesis]) -> 
             evidence_ids: Vec::new(),
         },
         candidate_offsets,
+        vector_address: hypotheses.iter().find(|h| h.is_primary).map(|h| h.base),
         rationale,
         evidence_ids: Vec::new(),
     }
@@ -518,25 +615,6 @@ pub fn extract_vector_table(
     extract_vector_table_with_resolution(bytes, layout, hypotheses, None)
 }
 
-/// Is `word` a believable Cortex-M interrupt handler for a table whose reset
-/// vector is `reset_vector`?
-///
-/// Two conditions, both cheap and both load-address independent:
-///
-/// * the Thumb bit is set — every Cortex-M vector entry is a Thumb address, so
-///   an even word is never a handler; and
-/// * the word sits in the same 16 MB region as the reset handler, which is
-///   where the rest of the vector table's targets live in a flat image.
-///
-/// The region test deliberately compares regions rather than checking the word
-/// against the image's own bounds. Handlers legitimately point past the end of
-/// a partial image (an app slice carved out of a larger flash), so a bounds
-/// test would reject real tables; a word from a different 16 MB region is
-/// decompressed code or an MMIO constant, not a handler.
-fn plausible_handler_word(word: u32, reset_vector: u32) -> bool {
-    word & 1 == 1 && (word >> 24) == (reset_vector >> 24)
-}
-
 fn extract_vector_table_with_resolution(
     bytes: &[u8],
     layout: &ImageLayoutReport,
@@ -544,7 +622,10 @@ fn extract_vector_table_with_resolution(
     requested_resolution: Option<&FamilyResolution>,
 ) -> Option<InterruptVectorReport> {
     let offset = usize::try_from(*layout.candidate_offsets.first()?).ok()?;
-    let profile = detect_cortex_m_ivt(bytes.get(offset..)?)?;
+    let vector_address = layout
+        .vector_address
+        .or_else(|| hypotheses.iter().find(|h| h.is_primary).map(|h| h.base));
+    let profile = detect_cortex_m_ivt_with_base(bytes.get(offset..)?, vector_address)?;
     let detected_resolution = resolve_family_resolution(None, Some(profile.chip_family.as_str()));
     let family_resolution = requested_resolution
         .filter(|resolution| resolution.is_enriching_match())
@@ -553,175 +634,13 @@ fn extract_vector_table_with_resolution(
                 .is_enriching_match()
                 .then_some(&detected_resolution)
         });
-    let family_limit = family_resolution
-        .and_then(|resolution| resolution.pack.total_vector_entries)
-        .map(usize::from);
-    let available_words = bytes.len().saturating_sub(offset) / 4;
-    let requested_limit = family_limit.unwrap_or(256);
-    let max_entries = available_words.min(requested_limit);
-    let mut entries = Vec::new();
-    let mut address_counts = HashMap::<u32, usize>::new();
-    let mut stopped_at_sentinel = false;
-    let mut stopped_at_implausible = false;
-
-    for index in 0..max_entries {
-        let word_offset = offset + index * 4;
-        let word = read_u32_at(bytes, word_offset)?;
-        if index > 1 && word == 0xFFFF_FFFF {
-            stopped_at_sentinel = true;
-            break;
-        }
-        // The table is contiguous, so the first word that cannot be a handler
-        // is the end of it. Without this the scan runs on into whatever
-        // follows -- startup code, an init table, padding -- and reports those
-        // words as named IRQ handlers. A zero word stays a
-        // legitimate reserved slot and does not end the table.
-        if index > 1 && word != 0 && !plausible_handler_word(word, profile.reset_vector) {
-            stopped_at_implausible = true;
-            break;
-        }
-        if word != 0 && word != 0xFFFF_FFFF && index >= 2 {
-            *address_counts.entry(word & !1).or_insert(0) += 1;
-        }
-
-        let handler_kind = match index {
-            0 => InterruptHandlerKind::InitialStackPointer,
-            1 => InterruptHandlerKind::ResetHandler,
-            _ if word == 0 || word == 0xFFFF_FFFF => InterruptHandlerKind::Reserved,
-            _ => InterruptHandlerKind::Interrupt,
-        };
-
-        entries.push(InterruptVectorEntry {
-            index: index as u16,
-            address: word,
-            handler_kind,
-            family_label: None,
-            evidence_ids: Vec::new(),
-        });
-    }
-
-    let default_handler = address_counts
-        .iter()
-        .max_by_key(|(_, count)| *count)
-        .and_then(|(address, count)| {
-            if *count >= 8 {
-                Some((*address, *count))
-            } else {
-                None
-            }
-        });
-
-    if let Some((default_addr, _)) = default_handler {
-        for entry in &mut entries {
-            if entry.index >= 4 && entry.address & !1 == default_addr {
-                entry.handler_kind = InterruptHandlerKind::DefaultHandler;
-            }
-        }
-    }
-
-    let default_handler_count = entries
-        .iter()
-        .filter(|entry| entry.handler_kind == InterruptHandlerKind::DefaultHandler)
-        .count();
-    let active_count = entries
-        .iter()
-        .filter(|entry| {
-            entry.handler_kind == InterruptHandlerKind::ResetHandler
-                || entry.handler_kind == InterruptHandlerKind::Interrupt
-        })
-        .count();
-    let mut handler_targets = HashMap::<u32, usize>::new();
-    for entry in entries.iter().skip(1) {
-        if entry.address != 0 && entry.address != 0xFFFF_FFFF {
-            *handler_targets.entry(entry.address & !1).or_insert(0) += 1;
-        }
-    }
-    let handler_candidate_count = handler_targets.values().sum();
-    let unique_aligned_target_count = handler_targets.len();
-    let mut repeated_targets = handler_targets
-        .into_iter()
-        .filter_map(|(aligned_address, reference_count)| {
-            (reference_count > 1).then_some(RepeatedVectorTarget {
-                aligned_address,
-                reference_count,
-            })
-        })
-        .collect::<Vec<_>>();
-    repeated_targets.sort_by(|left, right| {
-        right
-            .reference_count
-            .cmp(&left.reference_count)
-            .then_with(|| left.aligned_address.cmp(&right.aligned_address))
-    });
-
-    let (scan_boundary, scan_boundary_rationale) = if stopped_at_implausible {
-        (
-            "implausible-handler-word".to_string(),
-            vec![format!(
-                "stopped before word {} at the first entry that is not a Thumb address in the reset handler's region (0x{:02x}000000)",
-                entries.len(),
-                profile.reset_vector >> 24
-            )],
-        )
-    } else if stopped_at_sentinel {
-        (
-            "empty-vector-sentinel".to_string(),
-            vec![format!(
-                "stopped before word {} at the first 0xffffffff vector sentinel",
-                entries.len()
-            )],
-        )
-    } else if let Some(limit) = family_limit {
-        if available_words >= limit {
-            let family_id = family_resolution
-                .map(|resolution| resolution.pack.family_id)
-                .unwrap_or("unknown");
-            (
-                "family-vector-limit".to_string(),
-                vec![format!(
-                    "family pack {family_id} limits the vector table to {limit} words"
-                )],
-            )
-        } else {
-            (
-                "available-bytes".to_string(),
-                vec![format!(
-                    "artifact contains {available_words} complete words from the vector offset, below the family limit of {limit}"
-                )],
-            )
-        }
-    } else if available_words < requested_limit {
-        (
-            "available-bytes".to_string(),
-            vec![format!(
-                "artifact contains {available_words} complete words from the vector offset"
-            )],
-        )
-    } else {
-        (
-            "fallback-vector-limit".to_string(),
-            vec![format!(
-                "no exact family vector limit was available; capped scan at {requested_limit} words"
-            )],
-        )
-    };
-
-    Some(InterruptVectorReport {
-        entry_count: entries.len(),
-        active_count,
-        default_handler_count,
-        scanned_word_count: entries.len(),
-        handler_candidate_count,
-        unique_aligned_target_count,
-        repeated_targets,
-        scan_boundary,
-        scan_boundary_rationale,
-        entries,
-        provenance: Some(section_provenance(
-            "vector-table-extractor",
-            hypotheses.first().map(|hyp| hyp.base),
-        )),
-    })
+    let mut table = crate::mcu::scan_vector_table(
+        bytes.get(offset..)?,
+        vector_address,
+        family_resolution.map(|resolution| resolution.pack),
+    )?;
+    table.provenance = Some(section_provenance("vector-table-extractor", vector_address));
+    Some(table)
 }
 
 /// Startup functions decoded while walking the chain. Bounded so a mis-decode
@@ -965,7 +884,10 @@ pub fn extract_execution_model(
     else {
         return degraded(Vec::new(), anti_evidence);
     };
-    let Some(flash_base) = infer_flash_base(base_address) else {
+    let Some(flash_base) = layout
+        .vector_address
+        .or_else(|| infer_flash_base(base_address))
+    else {
         return degraded(Vec::new(), anti_evidence);
     };
     let Some(vector_offset) = usize::try_from(*layout.candidate_offsets.first().unwrap_or(&0)).ok()
@@ -1020,69 +942,22 @@ pub fn extract_execution_model(
         });
     }
 
-    // SysTick handler (vector table index 15): default vs dedicated code.
-    let mut systick_custom = false;
-    if let Some(entry) = vector_table.and_then(|table| table.entries.get(15)) {
-        match entry.handler_kind {
-            InterruptHandlerKind::DefaultHandler => {
-                supporting_evidence.push(ExecutionModelEvidence {
-                    kind: EvidenceHeuristicKind::SysTickHandlerDefault,
-                    description:
-                        "systick handler (vector 15) resolves to the shared default handler"
-                            .to_string(),
-                    artifact_ref: None,
-                });
-            }
-            InterruptHandlerKind::Interrupt => {
-                systick_custom = true;
-                anti_evidence.push(ExecutionModelEvidence {
-                    kind: EvidenceHeuristicKind::SysTickHandlerCustom,
-                    description: format!(
-                        "systick handler (vector 15) points at dedicated code at 0x{:08x}",
-                        entry.address & !1
-                    ),
-                    artifact_ref: Some(entry.address & !1),
-                });
-            }
-            _ => {}
-        }
-    }
-
-    // Vector density metrics from the vector-table report when available.
+    // Vector targets measure populated entries and aliases. Neither a shared
+    // target nor a dedicated pointer proves default/custom code or whether an
+    // interrupt is enabled. Leave the legacy non-default count unresolved.
     let mut metrics = ExecutionModelMetrics::default();
     if let Some(table) = vector_table {
-        let non_default = table
-            .entries
-            .iter()
-            .filter(|entry| {
-                entry.index >= 2 && entry.handler_kind == InterruptHandlerKind::Interrupt
-            })
-            .count() as u32;
-        metrics.non_default_irq_handlers = non_default;
         metrics.vector_table_entries = table.entries.len() as u32;
-        supporting_evidence.push(ExecutionModelEvidence {
-            kind: EvidenceHeuristicKind::NonDefaultVectorDensity {
-                non_default,
-                total: metrics.vector_table_entries,
-            },
-            description: format!(
-                "{non_default} of {} vector entries point at non-default handlers",
-                table.entries.len()
-            ),
-            artifact_ref: None,
-        });
     }
     metrics.loop_heads_total = loop_heads.len() as u32;
 
     // Classification: RTOS markers dominate; otherwise keep the established
-    // loop-head superloop classification; a custom SysTick without markers or
-    // loop heads suggests an ISR-driven kernel.
+    // loop-head superloop classification. Populated SysTick vectors alone
+    // cannot establish an ISR-driven kernel.
     let model_value = if rtos_marker.is_some() {
         ExecutionModelKind::Rtos
     } else if !loop_heads.is_empty() {
         ExecutionModelKind::Superloop
-    } else if systick_custom {
-        ExecutionModelKind::IsrDriven
     } else {
         ExecutionModelKind::Unknown
     };
@@ -1122,7 +997,8 @@ pub fn extract_execution_model(
         Interpretation {
             value: model_value,
             confidence,
-            rationale: vec![rationale],
+            rationale: vec![rationale,
+                "vector targets alone do not establish default/custom handler roles or enabled interrupts; non-default handler metric is unresolved".into()],
             evidence_ids: Vec::new(),
         },
         loop_heads,
@@ -1728,7 +1604,8 @@ fn build_main_entry(startup_chain: &StartupChainReport) -> Option<MainEntryRepor
         entrypoint: Interpretation {
             value: main.address,
             confidence,
-            rationale: vec![rationale],
+            rationale: vec![rationale,
+                "vector targets alone do not establish default/custom handler roles or enabled interrupts; non-default handler metric is unresolved".into()],
             evidence_ids: Vec::new(),
         },
         provenance: startup_chain.provenance.clone(),
@@ -1777,27 +1654,23 @@ struct VectorCandidate {
 }
 
 fn find_vector_candidates(bytes: &[u8]) -> Vec<VectorCandidate> {
-    if bytes.len() < 16 {
-        return Vec::new();
-    }
-    let mut candidates = Vec::new();
-    let scan_limit = bytes.len().min(0x2000);
-    for offset in (0..=scan_limit - 16).step_by(4) {
-        if let Some(profile) = detect_cortex_m_ivt(&bytes[offset..]) {
-            candidates.push(VectorCandidate { offset, profile });
-            if offset == 0 {
-                break;
-            }
-        }
-    }
-    candidates.sort_by_key(|candidate| candidate.offset);
-    candidates.truncate(4);
-    candidates
+    vector_candidates(bytes)
+        .into_iter()
+        .filter(|candidate| candidate.accepted)
+        // Mapping belongs to the selected table. Keep other structural
+        // candidates in identification, never borrow their base for this one.
+        .take(1)
+        .filter_map(|candidate| {
+            let offset = candidate.offset as usize;
+            detect_cortex_m_ivt(&bytes[offset..]).map(|profile| VectorCandidate { offset, profile })
+        })
+        .collect()
 }
 
 fn vector_candidate_offsets(bytes: &[u8]) -> Vec<u32> {
-    find_vector_candidates(bytes)
+    vector_candidates(bytes)
         .into_iter()
+        .filter(|candidate| candidate.accepted)
         .map(|candidate| candidate.offset as u32)
         .collect()
 }
@@ -1813,13 +1686,7 @@ fn align_down(value: u32, alignment: u32) -> u32 {
 }
 
 pub(crate) fn infer_flash_base(address: u32) -> Option<u32> {
-    match address >> 24 {
-        0x08 => Some(0x0800_0000),
-        0x00 => Some(0x0000_0000),
-        0x01 => Some(0x0100_0000),
-        0x04 => Some(0x0040_0000),
-        _ => None,
-    }
+    crate::mcu::infer_code_base(address)
 }
 
 fn extract_family_mmio_literals(

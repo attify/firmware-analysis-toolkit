@@ -2,12 +2,11 @@ use crate::{elf_inspect, envelope_cmd, schema_versions};
 use fat_analyze::bootloader::{
     analyze_firmware_bytes, build_layout_report, build_layout_report_with_bytes,
 };
-use fat_analyze::mcu::detect_cortex_m_ivt;
 use fat_analyze::mcu_inspect::{inspect_file, McuInspectRequest};
 use fat_core::inspection::ContainerHeader;
 use fat_core::inspection::FilesystemHeader;
 use fat_core::layout::LayoutReport;
-use fat_core::mcu_inspection::McuInspectionReport;
+use fat_core::mcu_inspection::{McuIdentification, McuInspectionReport};
 use fat_extract::ExtractionManifest;
 use fat_query::target_detection::{self, TargetKind};
 use serde::Serialize;
@@ -37,6 +36,8 @@ pub struct IdentifyReport {
     pub envelope: Option<envelope_cmd::EnvelopeReport>,
     pub structure: Option<StructureSummary>,
     pub mcu: Option<McuSummary>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcu_diagnostics: Option<McuIdentification>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -136,9 +137,10 @@ pub struct McuSummary {
     pub family_confidence: u8,
     pub reset_vector: String,
     pub base_hypothesis: Option<String>,
+    pub identification: McuIdentification,
 }
 
-pub fn run(path: Option<&Path>, file: Option<&Path>, json: bool) -> DynResult<()> {
+pub fn run(path: Option<&Path>, file: Option<&Path>, json: bool, details: bool) -> DynResult<()> {
     let input = match (path, file) {
         (Some(_), Some(_)) | (None, None) => {
             return Err(
@@ -152,7 +154,7 @@ pub fn run(path: Option<&Path>, file: Option<&Path>, json: bool) -> DynResult<()
     if json {
         println!("{}", serde_json::to_string_pretty(&report)?);
     } else {
-        render_report(&report);
+        render_report(&report, input, details);
     }
     Ok(())
 }
@@ -314,6 +316,7 @@ fn collect_raw_blob_report(path: &Path, path_kind: String) -> DynResult<Identify
             envelope: None,
             structure: Some(structure),
             mcu: None,
+            mcu_diagnostics: None,
         });
     }
 
@@ -347,10 +350,15 @@ fn collect_raw_blob_report(path: &Path, path_kind: String) -> DynResult<Identify
         likely_class,
         confidence,
         summary,
-        evidence: envelope.evidence.iter().take(4).cloned().collect(),
+        evidence: envelope.evidence.clone(),
         envelope_label,
         envelope: Some(envelope),
         structure: Some(structure),
+        mcu_diagnostics: if mcu.is_none() {
+            mcu_report.and_then(|report| report.identification)
+        } else {
+            None
+        },
         mcu,
     })
 }
@@ -373,6 +381,7 @@ fn executable_report(path: &Path, path_kind: String) -> IdentifyReport {
         envelope: None,
         structure: None,
         mcu: None,
+        mcu_diagnostics: None,
     }
 }
 
@@ -431,6 +440,7 @@ fn directory_report(
         envelope: None,
         structure: None,
         mcu: None,
+        mcu_diagnostics: None,
     }
 }
 
@@ -601,6 +611,30 @@ mod tests {
             "3.00 GiB (3,221,225,472 bytes)"
         );
     }
+
+    #[test]
+    fn render_mcu_identification_shows_all_accepted_vectors() {
+        let mut identification = McuIdentification::default();
+        for index in 0..6 {
+            identification
+                .vector_candidates
+                .push(fat_core::mcu_inspection::McuVectorCandidate {
+                    offset: 0x1000 + index * 0x100,
+                    initial_sp: 0x2000_1000,
+                    reset_vector: 0x0800_0101,
+                    accepted: index < 5,
+                    confidence: "high".into(),
+                    ..Default::default()
+                });
+        }
+        let mut view = crate::report::Report::new("Identification");
+        render_mcu_identification(&mut view, &identification);
+        let rendered = view.finish();
+        assert!(!rendered.contains("Shown"), "{rendered}");
+        assert!(rendered.contains("0x1300"), "{rendered}");
+        assert!(rendered.contains("0x1400"), "{rendered}");
+        assert!(!rendered.contains("0x1500"), "{rendered}");
+    }
 }
 
 fn is_unrecognized_directory_error(err: &str) -> bool {
@@ -609,10 +643,9 @@ fn is_unrecognized_directory_error(err: &str) -> bool {
 
 fn maybe_inspect_mcu(
     path: &Path,
-    bytes: &[u8],
+    _bytes: &[u8],
     _layout: &LayoutReport,
 ) -> Option<McuInspectionReport> {
-    detect_cortex_m_ivt(bytes)?;
     inspect_file(&McuInspectRequest {
         file: path.to_path_buf(),
         user_base: None,
@@ -623,10 +656,7 @@ fn maybe_inspect_mcu(
     .ok()
 }
 
-fn should_attempt_mcu_inspection(envelope_classification: &str, layout: &LayoutReport) -> bool {
-    if envelope_classification == "opaque-wrapper-likely" {
-        return false;
-    }
+fn should_attempt_mcu_inspection(_envelope_classification: &str, layout: &LayoutReport) -> bool {
     if layout.summary.dominant_boot_image_offset.is_some()
         || layout.summary.dominant_rootfs_offset.is_some()
     {
@@ -639,20 +669,32 @@ fn should_attempt_mcu_inspection(envelope_classification: &str, layout: &LayoutR
 }
 
 fn summarize_mcu(report: &McuInspectionReport) -> Option<McuSummary> {
-    let profile = report.fast_profile.as_ref()?;
+    let identification = report.identification.as_ref()?;
+    let architecture = identification.architecture.as_ref()?;
+    let candidate = identification
+        .vector_candidates
+        .iter()
+        .find(|c| c.accepted)?;
     let base_hypothesis = report
         .address_hypotheses
         .as_ref()
         .and_then(|hypotheses| hypotheses.iter().find(|hypothesis| hypothesis.is_primary))
-        .map(|hypothesis| format!("0x{:08X}", hypothesis.base))
-        .or_else(|| Some(format!("0x{:08X}", profile.flash_base)));
+        .map(|hypothesis| format!("0x{:08X}", hypothesis.base));
 
     Some(McuSummary {
-        architecture: profile.architecture.clone(),
-        family: profile.chip_family.clone(),
-        family_confidence: profile.chip_family_confidence,
-        reset_vector: format!("0x{:08X}", profile.reset_vector),
+        architecture: architecture.clone(),
+        family: identification
+            .family
+            .clone()
+            .unwrap_or_else(|| "unresolved".into()),
+        family_confidence: report
+            .fast_profile
+            .as_ref()
+            .map(|p| p.chip_family_confidence)
+            .unwrap_or(0),
+        reset_vector: format!("0x{:08X}", candidate.reset_vector),
         base_hypothesis,
+        identification: identification.clone(),
     })
 }
 
@@ -979,7 +1021,7 @@ fn synthesize_likely_class(
         .any(|header| header.magic == "UTPK")
     {
         "vendor-update-package".to_string()
-    } else if envelope_classification == "opaque-wrapper-likely" {
+    } else if envelope_classification == "opaque-wrapper-likely" && mcu.is_none() {
         "opaque-wrapper-likely".to_string()
     } else if mcu.is_some()
         && layout.summary.dominant_boot_image_offset.is_none()
@@ -1178,6 +1220,12 @@ fn synthesize_confidence(
     container_headers: &[ContainerHeader],
     mcu: Option<&McuSummary>,
 ) -> String {
+    if let Some(mcu) = mcu.filter(|_| {
+        layout.summary.dominant_boot_image_offset.is_none()
+            && layout.summary.dominant_rootfs_offset.is_none()
+    }) {
+        return mcu.identification.architecture_confidence.clone();
+    }
     if container_headers
         .iter()
         .any(|header| header.magic == "UTPK")
@@ -1199,199 +1247,7 @@ fn synthesize_confidence(
     }
 }
 
-/// A confidence word as a fraction for the confidence bar.
-fn confidence_fraction(confidence: &str) -> Option<f32> {
-    match confidence.to_ascii_lowercase().as_str() {
-        "very high" => Some(0.9),
-        "high" => Some(0.75),
-        "medium" => Some(0.5),
-        "low" => Some(0.25),
-        "very low" => Some(0.1),
-        _ => None,
-    }
-}
-
-/// The workflow hand-off after an identify run: name the next command that
-/// consumes this input, keyed off the likely class.
-fn identify_next_hint(report: &IdentifyReport) -> String {
-    match report.likely_class.as_str() {
-        "rootfs-directory" => "fat new <firmware> — or extract a container image above it".into(),
-        "mcu-firmware-likely" => "fat inspect-mcu <path>".into(),
-        "executable-binary" => "fat inspect-elf <path>".into(),
-        _ => "fat extract <path>".into(),
-    }
-}
-
-/// Panel-mode identify report: identity block, summary, envelope with an
-/// entropy bar, structure entries with dimmed metadata, and the MCU signal.
-fn identify_panel_lines(report: &IdentifyReport, p: &crate::style::Palette) -> Vec<String> {
-    let mut lines: Vec<String> = Vec::new();
-    lines.push(p.kv("Input", &report.input_path));
-    lines.push(p.kv("Path kind", &report.path_kind));
-    lines.push(format!(
-        "{} {}",
-        p.dot_ok(),
-        p.good(format!("likely class: {}", report.likely_class))
-    ));
-    let confidence_word = match report.confidence.to_ascii_lowercase().as_str() {
-        "high" | "very high" => p.good(&report.confidence),
-        "medium" => p.warn(&report.confidence),
-        "low" | "very low" => p.bad(&report.confidence),
-        _ => report.confidence.clone(),
-    };
-    let confidence_line = match confidence_fraction(&report.confidence) {
-        Some(frac) => format!("confidence: {confidence_word}  {}", p.bar(frac, 10)),
-        None => format!("confidence: {confidence_word}"),
-    };
-    lines.push(format!("{} {}", p.dot_ok(), confidence_line));
-
-    if !report.summary.is_empty() {
-        lines.push(String::new());
-        lines.push(p.heading("Summary"));
-        for line in &report.summary {
-            lines.push(format!("{} {}", p.dot_muted(), p.muted(line)));
-        }
-    }
-
-    if let Some(envelope) = report.envelope.as_ref() {
-        lines.push(String::new());
-        lines.push(p.heading("Envelope"));
-        lines.push(format!(
-            "{} {}",
-            p.dot_ok(),
-            report
-                .envelope_label
-                .as_deref()
-                .unwrap_or_else(|| envelope_cmd::render_classification(&envelope.classification))
-        ));
-        lines.push(format!(
-            "  entropy  {}  {ent:.2}/8.0",
-            p.bar((envelope.entropy / 8.0) as f32, 10),
-            ent = envelope.entropy,
-        ));
-        for line in envelope.evidence.iter().skip(1).take(2) {
-            lines.push(format!("{} {}", p.dot_muted(), p.muted(line)));
-        }
-    }
-
-    if let Some(structure) = report.structure.as_ref() {
-        let visible_hits: Vec<&ObjectHit> = structure
-            .regions
-            .iter()
-            .filter(|hit| {
-                if hit.kind != "compression" || hit.scope.as_deref() != Some("nested") {
-                    return true;
-                }
-                let parent_is_filesystem = hit.parent_offset.is_some_and(|parent_offset| {
-                    structure
-                        .regions
-                        .iter()
-                        .any(|parent| parent.offset == parent_offset && parent.kind == "filesystem")
-                });
-                !parent_is_filesystem || hit.role.as_deref() == Some("likely kernel payload")
-            })
-            .collect();
-        if !visible_hits.is_empty() {
-            lines.push(String::new());
-            lines.push(p.heading("Structure"));
-            for hit in visible_hits {
-                let (head, metas) = structure_hit_parts(hit);
-                let meta = if metas.is_empty() {
-                    String::new()
-                } else {
-                    format!("  {}", p.muted(format!("({})", metas.join("; "))))
-                };
-                lines.push(format!("{} {head}{meta}", p.dot_ok()));
-            }
-            if let Some(dominant) = structure.dominant_boot_image.as_deref() {
-                lines.push(p.kv("Dominant boot image", dominant));
-            }
-            if let Some(dominant) = structure.dominant_rootfs.as_deref() {
-                lines.push(p.kv("Dominant rootfs", dominant));
-            }
-        }
-
-        if let Some(partitioning) = structure.partitioning.as_ref() {
-            lines.push(String::new());
-            lines.push(p.heading("Partitioning"));
-            lines.push(p.kv("Source", &partitioning.source));
-            lines.push(p.kv("Device", &partitioning.device));
-            lines.push(p.kv(
-                "Flash map",
-                format!(
-                    "{} MTD partitions, {} total",
-                    partitioning.partition_count,
-                    render_byte_size(partitioning.flash_size_bytes)
-                ),
-            ));
-            if let Some(root) = partitioning.root.as_deref() {
-                lines.push(p.kv("Root", root));
-            }
-            if let Some(app_system) = partitioning.app_system.as_deref() {
-                lines.push(p.kv("App/system", app_system));
-            }
-            if !partitioning.backups.is_empty() {
-                lines.push(p.kv("Backups", partitioning.backups.join(", ")));
-            }
-            if !partitioning.config_data.is_empty() {
-                lines.push(p.kv("Config/data", partitioning.config_data.join(", ")));
-            }
-        }
-
-        if !structure.inferences.is_empty() {
-            lines.push(String::new());
-            lines.push(p.heading("Inferences"));
-            for inference in &structure.inferences {
-                let label = if inference.id == "layout.split-root" {
-                    format!("Layout pattern: {}", inference.label)
-                } else {
-                    format!("{}: {}", inference.id, inference.label)
-                };
-                lines.push(format!("{} {}", p.dot_ok(), label));
-            }
-        }
-    }
-
-    lines.push(String::new());
-    lines.push(p.heading("MCU signal"));
-    if report.likely_class == "mcu-firmware-likely" {
-        if let Some(mcu) = report.mcu.as_ref() {
-            lines.push(p.kv("Architecture", &mcu.architecture));
-            lines.push(p.kv(
-                "Family",
-                format!(
-                    "{} [{}%]  {}",
-                    mcu.family,
-                    mcu.family_confidence,
-                    p.bar(mcu.family_confidence as f32 / 100.0, 10)
-                ),
-            ));
-            lines.push(p.kv("Reset vector", &mcu.reset_vector));
-            if let Some(base) = mcu.base_hypothesis.as_deref() {
-                lines.push(p.kv("Base hypothesis", base));
-            }
-        } else {
-            lines.push(p.muted("not indicated"));
-        }
-    } else {
-        lines.push(p.muted("not indicated"));
-    }
-    lines
-}
-
-fn render_structure_hit(hit: &ObjectHit) -> String {
-    let (head, metas) = structure_hit_parts(hit);
-    let mut rendered = head;
-    for meta in metas {
-        rendered.push_str(&format!(" ({meta})"));
-    }
-    rendered
-}
-
-/// Split one structure hit into its `kind @ offset` head and the parenthesised
-/// metadata groups the plain renderer appends. The panel shows the head with a
-/// status dot and the metadata dimmed; the plain renderer joins them back into
-/// the historical `head (meta)` shape.
+/// Preserve each structure hit's offset and metadata for the shared report.
 fn structure_hit_parts(hit: &ObjectHit) -> (String, Vec<String>) {
     if hit.kind == "padding" {
         let inclusive_end = hit.end_offset.and_then(|end| end.checked_sub(1));
@@ -1489,6 +1345,14 @@ fn render_byte_size(bytes: u64) -> String {
     )
 }
 
+fn byte_size_for_view(size: &str, details: bool) -> &str {
+    if details {
+        size
+    } else {
+        size.split_once(" (").map_or(size, |(short, _)| short)
+    }
+}
+
 fn render_grouped_integer(value: u64) -> String {
     let digits = value.to_string();
     let mut rendered = String::with_capacity(digits.len() + digits.len().saturating_sub(1) / 3);
@@ -1501,155 +1365,428 @@ fn render_grouped_integer(value: u64) -> String {
     rendered
 }
 
-fn render_report(report: &IdentifyReport) {
-    let p = crate::style::Palette::stdout();
-    if p.enabled() {
-        println!(
-            "{}",
-            p.panel("fat identify", &identify_panel_lines(report, &p))
-        );
-        println!("{}", p.next_hint(&identify_next_hint(report)));
-        return;
+fn render_report(report: &IdentifyReport, input: &Path, details: bool) {
+    let filename = input.file_name().map(Path::new).unwrap_or(input);
+    let mut view =
+        crate::report::Report::new(&format!("Identification · {}", render_input_path(filename)));
+    let palette = view.palette();
+    let mcu = report.mcu.as_ref().filter(|mcu| {
+        report.likely_class == "mcu-firmware-likely"
+            && mcu
+                .identification
+                .vector_candidates
+                .iter()
+                .any(|candidate| candidate.accepted)
+    });
+    if let Some(mcu) = mcu {
+        let identity = if let Some(family) = mcu.identification.family.as_ref() {
+            format!(
+                "{}; {} [{}]",
+                mcu.architecture,
+                family,
+                qualitative_label(palette, &mcu.identification.family_confidence)
+            )
+        } else {
+            mcu.architecture.clone()
+        };
+        view.kv("MCU", identity);
     }
-    // Width of the widest key in the identity block so the colons line up.
-    const KW: usize = 12;
-    let bullet = |line: &str| format!("  {} {line}", p.muted("-"));
-
-    let confidence = match report.confidence.to_ascii_lowercase().as_str() {
-        "high" | "very high" => p.good(&report.confidence),
-        "medium" => p.warn(&report.confidence),
-        "low" | "very low" => p.bad(&report.confidence),
-        _ => report.confidence.clone(),
-    };
-
-    println!("{}", p.heading("Identification"));
-    println!("  {}", p.kv_aligned("Input", KW, &report.input_path));
-    println!("  {}", p.kv_aligned("Path kind", KW, &report.path_kind));
-    println!(
-        "  {}",
-        p.kv_aligned("Likely class", KW, &report.likely_class)
+    view.kv(
+        "Likely class",
+        format!(
+            "{} [{}]",
+            report.likely_class,
+            qualitative_label(palette, &report.confidence)
+        ),
     );
-    println!("  {}", p.kv_aligned("Confidence", KW, confidence));
+    if let Some(role) = mcu.and_then(|mcu| mcu.identification.image_role.as_deref()) {
+        view.kv(
+            "Image role",
+            match role {
+                "boot-rom-likely" => "Likely boot ROM",
+                other => other,
+            },
+        );
+    }
+    if details {
+        view.kv("Input", &report.input_path);
+        view.kv("Path kind", &report.path_kind);
+    }
 
-    if !report.summary.is_empty() {
-        println!();
-        println!("{}", p.heading("Summary"));
-        for line in &report.summary {
-            println!("{}", bullet(line));
+    let mut seen = std::collections::HashSet::new();
+    let summary = report
+        .summary
+        .iter()
+        .filter_map(|line| concise_summary_line(line))
+        .filter(|line| seen.insert(*line))
+        .collect::<Vec<_>>();
+    if !summary.is_empty() || report.envelope.is_some() || mcu.is_some() {
+        view.section(if report.path_kind == "RawBlob" {
+            "Image"
+        } else {
+            "Summary"
+        });
+        for line in summary {
+            if let Some(size) = line
+                .strip_suffix(" analyzed")
+                .filter(|_| report.path_kind == "RawBlob")
+            {
+                view.kv("Size", byte_size_for_view(size, details));
+            } else {
+                view.text(address_text(palette, line));
+            }
         }
     }
 
     if let Some(envelope) = report.envelope.as_ref() {
-        println!();
-        println!("{}", p.heading("Envelope"));
-        println!(
-            "  {}",
-            report
-                .envelope_label
-                .as_deref()
-                .unwrap_or_else(|| envelope_cmd::render_classification(&envelope.classification))
-        );
-        for line in envelope.evidence.iter().take(3) {
-            println!("{}", bullet(line));
+        if mcu.is_none() || details {
+            view.kv(
+                "Envelope",
+                report.envelope_label.as_deref().unwrap_or_else(|| {
+                    envelope_cmd::render_classification(&envelope.classification)
+                }),
+            );
+        }
+        if let Some(unit) = envelope.repetition.repeated_unit_bytes {
+            let size = render_byte_size(unit);
+            view.kv(
+                "Repeated image",
+                format!(
+                    "{} exact copies of {}",
+                    envelope.repetition.copies,
+                    byte_size_for_view(&size, details)
+                ),
+            );
+            if details {
+                view.kv("Repeat unit", palette.info(format!("[0, 0x{unit:X})")));
+            }
+        }
+    }
+    if let Some(mcu) = mcu {
+        if let Some(base) = mcu.base_hypothesis.as_deref() {
+            view.kv("Base hypothesis", palette.info(base));
+        }
+        if let Some(candidate) = mcu
+            .identification
+            .vector_candidates
+            .iter()
+            .find(|candidate| candidate.accepted)
+        {
+            view.kv(
+                "Reset handler",
+                palette.info(format!("0x{:08X}", candidate.reset_vector & !1)),
+            );
+        }
+    }
+    if details {
+        if let Some(envelope) = report.envelope.as_ref() {
+            render_envelope_details(&mut view, envelope);
+        }
+        if let Some(mcu) = mcu {
+            render_mcu_identification(&mut view, &mcu.identification);
         }
     }
 
     if let Some(structure) = report.structure.as_ref() {
-        println!();
-        println!("{}", p.heading("Structure"));
-        for hit in structure.regions.iter().filter(|hit| {
-            if hit.kind != "compression" || hit.scope.as_deref() != Some("nested") {
-                return true;
+        let rows = structure
+            .regions
+            .iter()
+            .filter(|hit| {
+                if hit.kind != "compression" || hit.scope.as_deref() != Some("nested") {
+                    return true;
+                }
+                let parent_is_filesystem = hit.parent_offset.is_some_and(|parent_offset| {
+                    structure
+                        .regions
+                        .iter()
+                        .any(|parent| parent.offset == parent_offset && parent.kind == "filesystem")
+                });
+                !parent_is_filesystem || hit.role.as_deref() == Some("likely kernel payload")
+            })
+            .map(|hit| {
+                let (head, mut metadata) = structure_hit_parts(hit);
+                metadata.retain(|value| value != "span unknown");
+                vec![
+                    address_text(palette, &head),
+                    if metadata.is_empty() {
+                        String::new()
+                    } else {
+                        address_text(palette, &metadata.join("; "))
+                    },
+                ]
+            })
+            .collect::<Vec<_>>();
+        if !rows.is_empty()
+            || structure.dominant_boot_image.is_some()
+            || structure.dominant_rootfs.is_some()
+        {
+            view.section("Structure");
+            if !rows.is_empty() {
+                if rows.iter().all(|row| row[1].is_empty()) {
+                    view.table(
+                        &["Object"],
+                        &rows
+                            .iter()
+                            .map(|row| vec![row[0].clone()])
+                            .collect::<Vec<_>>(),
+                    );
+                } else {
+                    view.table(&["Object", "Details"], &rows);
+                }
             }
-            let parent_is_filesystem = hit.parent_offset.is_some_and(|parent_offset| {
-                structure
-                    .regions
-                    .iter()
-                    .any(|parent| parent.offset == parent_offset && parent.kind == "filesystem")
-            });
-            !parent_is_filesystem || hit.role.as_deref() == Some("likely kernel payload")
-        }) {
-            println!("  {}", render_structure_hit(hit));
+            if let Some(dominant) = structure.dominant_boot_image.as_deref() {
+                view.kv("Dominant boot image", address_text(palette, dominant));
+            }
+            if let Some(dominant) = structure.dominant_rootfs.as_deref() {
+                view.kv("Dominant rootfs", address_text(palette, dominant));
+            }
         }
-        if let Some(dominant) = structure.dominant_boot_image.as_deref() {
-            println!("  {}", p.kv("Dominant boot image", dominant));
-        }
-        if let Some(dominant) = structure.dominant_rootfs.as_deref() {
-            println!("  {}", p.kv("Dominant rootfs", dominant));
-        }
-    }
-
-    if let Some(partitioning) = report
-        .structure
-        .as_ref()
-        .and_then(|structure| structure.partitioning.as_ref())
-    {
-        println!();
-        println!("{}", p.heading("Partitioning"));
-        println!("  {}", p.kv("Source", &partitioning.source));
-        println!("  {}", p.kv("Device", &partitioning.device));
-        println!(
-            "  {}",
-            p.kv(
+        if let Some(partitioning) = structure.partitioning.as_ref() {
+            view.section("Partitioning");
+            view.kv("Source", address_text(palette, &partitioning.source));
+            view.kv("Device", &partitioning.device);
+            view.kv(
                 "Flash map",
                 format!(
                     "{} MTD partitions, {} total",
                     partitioning.partition_count,
                     render_byte_size(partitioning.flash_size_bytes)
-                )
-            )
-        );
-        if let Some(root) = partitioning.root.as_deref() {
-            println!("  {}", p.kv("Root", root));
-        }
-        if let Some(app_system) = partitioning.app_system.as_deref() {
-            println!("  {}", p.kv("App/system", app_system));
-        }
-        if !partitioning.backups.is_empty() {
-            println!("  {}", p.kv("Backups", partitioning.backups.join(", ")));
-        }
-        if !partitioning.config_data.is_empty() {
-            println!(
-                "  {}",
-                p.kv("Config/data", partitioning.config_data.join(", "))
+                ),
             );
+            if let Some(root) = partitioning.root.as_deref() {
+                view.kv("Root", root);
+            }
+            if let Some(app_system) = partitioning.app_system.as_deref() {
+                view.kv("App/system", app_system);
+            }
+            if !partitioning.backups.is_empty() {
+                view.kv("Backups", partitioning.backups.join(", "));
+            }
+            if !partitioning.config_data.is_empty() {
+                view.kv("Config/data", partitioning.config_data.join(", "));
+            }
         }
-    }
-
-    if let Some(structure) = report.structure.as_ref() {
         if !structure.inferences.is_empty() {
-            println!();
-            println!("{}", p.heading("Inferences"));
+            view.section("Inferences");
             for inference in &structure.inferences {
-                if inference.id == "layout.split-root" {
-                    println!("  {}", p.kv("Layout pattern", &inference.label));
-                } else {
-                    println!("  {}", p.kv(&inference.id, &inference.label));
-                }
+                view.kv(
+                    if inference.id == "layout.split-root" {
+                        "Layout pattern"
+                    } else {
+                        &inference.id
+                    },
+                    &inference.label,
+                );
             }
         }
     }
 
-    println!();
-    println!("{}", p.heading("MCU signal"));
-    if report.likely_class == "mcu-firmware-likely" {
-        if let Some(mcu) = report.mcu.as_ref() {
-            println!("  {}", p.kv("Architecture", &mcu.architecture));
-            println!(
-                "  {}",
-                p.kv(
-                    "Family",
-                    format!("{} [{}%]", mcu.family, mcu.family_confidence)
-                )
-            );
-            println!("  {}", p.kv("Reset vector", &mcu.reset_vector));
-            if let Some(base) = mcu.base_hypothesis.as_deref() {
-                println!("  {}", p.kv("Base hypothesis", base));
-            }
-        } else {
-            println!("  {}", p.muted("not indicated"));
-        }
-    } else {
-        println!("  {}", p.muted("not indicated"));
+    println!("{}", view.finish());
+}
+
+fn render_envelope_details(
+    view: &mut crate::report::Report,
+    envelope: &envelope_cmd::EnvelopeReport,
+) {
+    let palette = view.palette();
+    let mut metrics = vec![
+        vec![
+            "Entropy".into(),
+            format!(
+                "{:.2}/8.0 bits per byte {}",
+                envelope.entropy,
+                entropy_meter(palette, envelope.entropy)
+            ),
+        ],
+        vec![
+            "Unique bytes".into(),
+            format!("{}/256", envelope.unique_byte_count),
+        ],
+    ];
+    if envelope.duplicate_block_count > 0 {
+        metrics.push(vec![
+            "Duplicate 16-byte blocks".into(),
+            format!(
+                "{} of {}",
+                envelope.duplicate_block_count, envelope.total_block_count
+            ),
+        ]);
     }
+    view.table(&["Metric", "Value"], &metrics);
+    let repetition = &envelope.repetition;
+    let mut rows = Vec::new();
+    for (label, count) in [
+        (
+            "Duplicates from copies",
+            repetition.duplicate_blocks_from_copies,
+        ),
+        (
+            "Duplicates from uniform fill",
+            repetition.duplicate_uniform_blocks,
+        ),
+        (
+            "Unexplained duplicates",
+            repetition.unexplained_duplicate_blocks,
+        ),
+    ] {
+        if count > 0 {
+            rows.push(vec![label.into(), count.to_string()]);
+        }
+    }
+    if !rows.is_empty() {
+        view.table(&["Repetition", "Measurement"], &rows);
+    }
+    if !repetition.uniform_regions.is_empty() {
+        let rows = repetition
+            .uniform_regions
+            .iter()
+            .map(|region| {
+                vec![
+                    palette.info(format!(
+                        "[0x{:X}, 0x{:X})",
+                        region.offset,
+                        region.offset + region.length
+                    )),
+                    palette.info(format!("0x{:02X}", region.byte)),
+                    render_byte_size(region.length),
+                ]
+            })
+            .collect::<Vec<_>>();
+        view.table(&["Uniform file range", "Fill byte", "Size"], &rows);
+        if repetition.uniform_regions_truncated {
+            view.kv(
+                "Shown",
+                format!(
+                    "{} of {}+ uniform regions",
+                    rows.len(),
+                    repetition.uniform_regions.len()
+                ),
+            );
+        }
+    }
+    if let Some(prefix) = envelope.reference_prefix_len.filter(|length| *length > 0) {
+        view.kv("Shared reference prefix", render_byte_size(prefix as u64));
+    }
+    if let Some(header) = envelope
+        .likely_plaintext_header_len
+        .filter(|length| *length > 0)
+    {
+        view.kv(
+            "Plaintext header [likely]",
+            palette.info(format!("0x{header:X} bytes")),
+        );
+    }
+}
+
+fn render_mcu_identification(view: &mut crate::report::Report, identification: &McuIdentification) {
+    let palette = view.palette();
+    let vectors = identification
+        .vector_candidates
+        .iter()
+        .filter(|candidate| candidate.accepted)
+        .map(|candidate| {
+            vec![
+                palette.info(format!("0x{:X}", candidate.offset)),
+                qualitative_label(palette, &candidate.confidence),
+                palette.info(format!("0x{:08X}", candidate.initial_sp)),
+                palette.info(format!("0x{:08X}", candidate.reset_vector)),
+            ]
+        })
+        .collect::<Vec<_>>();
+    if !vectors.is_empty() {
+        view.table(
+            &["Vector offset", "Confidence", "Initial SP", "Reset vector"],
+            &vectors,
+        );
+    }
+    if !identification.identity_strings.is_empty() {
+        let mut grouped: Vec<(&str, &str, Vec<u64>)> = Vec::new();
+        for hit in &identification.identity_strings {
+            if let Some((_, _, offsets)) = grouped
+                .iter_mut()
+                .find(|(encoding, value, _)| *encoding == hit.encoding && *value == hit.value)
+            {
+                offsets.push(hit.offset);
+            } else {
+                grouped.push((&hit.encoding, &hit.value, vec![hit.offset]));
+            }
+        }
+        let rows = grouped
+            .iter()
+            .map(|(encoding, value, offsets)| {
+                vec![
+                    palette.info(
+                        offsets
+                            .iter()
+                            .map(|offset| format!("0x{offset:X}"))
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                    ),
+                    (*encoding).into(),
+                    (*value).into(),
+                ]
+            })
+            .collect::<Vec<_>>();
+        view.table(&["File offsets", "Encoding", "Identity text"], &rows);
+    }
+}
+
+/// The default view shows matched facts; diagnostics and explanatory limits
+/// remain unchanged in the serialized report.
+fn concise_summary_line(line: &str) -> Option<&str> {
+    if [
+        "Directory target detected",
+        "Shallow directory scan:",
+        "Interpretation:",
+        "Unknown top-level header:",
+        "Linking: static or no dynamic table found",
+        "No reusable extracted rootfs",
+    ]
+    .iter()
+    .any(|prefix| line.starts_with(prefix))
+    {
+        return None;
+    }
+    Some(
+        line.split("; no dominant boot image or rootfs identified")
+            .next()
+            .unwrap_or(line),
+    )
+}
+
+fn qualitative_label(palette: crate::style::Palette, label: &str) -> String {
+    match label.to_ascii_lowercase().as_str() {
+        "high" | "very high" | "corroborated" => palette.good(label),
+        "medium" | "low" | "very low" | "tentative" | "unknown" | "unresolved" | "insufficient" => {
+            palette.warn(label)
+        }
+        _ => palette.info(label),
+    }
+}
+
+fn entropy_meter(palette: crate::style::Palette, entropy: f64) -> String {
+    let filled = ((entropy / 8.0).clamp(0.0, 1.0) * 8.0).round() as usize;
+    palette.info(format!(
+        "[{}{}]",
+        "■".repeat(filled),
+        "·".repeat(8 - filled)
+    ))
+}
+
+/// Hex addresses and offsets keep one visual meaning across report sections.
+fn address_text(palette: crate::style::Palette, text: &str) -> String {
+    let mut output = String::new();
+    let mut tail = text;
+    while let Some(start) = tail.find("0x") {
+        output.push_str(&tail[..start]);
+        let hex = &tail[start..];
+        let end = 2 + hex.as_bytes()[2..]
+            .iter()
+            .take_while(|byte| byte.is_ascii_hexdigit())
+            .count();
+        output.push_str(&palette.info(&hex[..end]));
+        tail = &hex[end..];
+    }
+    output.push_str(tail);
+    output
 }
