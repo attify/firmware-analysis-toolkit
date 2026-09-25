@@ -91,6 +91,8 @@ fat data verify
 fat doctor --strict
 ```
 
+Binwalk 3.1.0 can occasionally exit before scanning its input. FAT retries that specific zero-file result up to twice, keeps incomplete output and logs beside `work/binwalk.log`, and reports failure if all attempts scan zero files.
+
 The installer also extracts a synthetic ZIP and verifies the recovered contents. To repeat that check from the checkout:
 
 ```bash

@@ -8,6 +8,8 @@
 
 ### Fixed
 
+- Healthy bootloader tmux sessions are reused on tmux versions that sanitize control characters in display formats.
+- Binwalk runs that exit without scanning any files are retried up to twice within the original timeout, preserving failed attempts and reporting a failure if scanning never starts.
 - Automatic native dependency installation recognizes Omarchy and other distributions declaring `ID_LIKE=arch`, while preserving explicitly supported distribution recipes.
 
 ## [2.0.0]
