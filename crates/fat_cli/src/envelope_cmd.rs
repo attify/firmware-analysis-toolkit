@@ -1,6 +1,7 @@
 use crate::schema_versions;
+use fat_analyze::image_measurements::measure_repetition;
+use fat_core::mcu_inspection::RepetitionMeasurements;
 use serde::Serialize;
-use std::collections::HashSet;
 use std::path::Path;
 
 type DynResult<T> = Result<T, Box<dyn std::error::Error>>;
@@ -19,21 +20,21 @@ pub struct EnvelopeReport {
     pub evidence: Vec<String>,
     pub likely_plaintext_header_len: Option<usize>,
     pub reference_prefix_len: Option<usize>,
+    pub repetition: RepetitionMeasurements,
 }
 
 impl EnvelopeReport {
     pub fn is_encrypted_like(&self) -> bool {
-        matches!(
-            self.classification.as_str(),
-            "opaque-wrapper-likely" | "repetitive-or-ecb-like"
-        )
+        self.classification == "opaque-wrapper-likely"
     }
 }
 
 pub fn analyze_envelope(bytes: &[u8], reference: Option<&[u8]>) -> EnvelopeReport {
     let entropy = shannon_entropy(bytes);
     let unique_byte_count = count_unique_bytes(bytes);
-    let (duplicate_block_count, total_block_count) = duplicate_block_stats(bytes, 16);
+    let repetition = measure_repetition(bytes);
+    let duplicate_block_count = repetition.duplicate_block_count;
+    let total_block_count = repetition.total_block_count;
     let reference_prefix_len = reference.map(|other| common_prefix_len(bytes, other));
     let likely_plaintext_header_len =
         reference_prefix_len.or_else(|| detect_plaintext_header_len(bytes, entropy));
@@ -43,6 +44,24 @@ pub fn analyze_envelope(bytes: &[u8], reference: Option<&[u8]>) -> EnvelopeRepor
         format!("Unique bytes: {unique_byte_count}/256"),
         format!("Duplicate 16-byte blocks: {duplicate_block_count} of {total_block_count}"),
     ];
+    if let Some(unit) = repetition.repeated_unit_bytes {
+        evidence.push(format!(
+            "Exact repeated region: [0, 0x{unit:X}) repeats {} times across the file",
+            repetition.copies
+        ));
+    }
+    if duplicate_block_count > 0 {
+        evidence.push(format!("Duplicate-block accounting: {} from exact copies, {} from uniform blocks, {} unexplained",
+            repetition.duplicate_blocks_from_copies, repetition.duplicate_uniform_blocks, repetition.unexplained_duplicate_blocks));
+    }
+    for region in repetition.uniform_regions.iter().take(4) {
+        evidence.push(format!(
+            "Uniform 0x{:02X} region: [0x{:X}, 0x{:X})",
+            region.byte,
+            region.offset,
+            region.offset + region.length
+        ));
+    }
 
     if let Some(prefix_len) = reference_prefix_len {
         evidence.push(format!("Shared prefix with reference: {prefix_len} bytes"));
@@ -55,10 +74,16 @@ pub fn analyze_envelope(bytes: &[u8], reference: Option<&[u8]>) -> EnvelopeRepor
     let (classification, ecb_assessment, confidence, reason) =
         if total_block_count >= 16 && duplicate_block_count > total_block_count / 4 {
             (
-                "repetitive-or-ecb-like".to_string(),
-                "ecb-plausible".to_string(),
+                "repetitive-payload".to_string(),
+                "not-indicated".to_string(),
                 0.72,
-                "repeated 16-byte blocks dominate the sampled payload".to_string(),
+                if repetition.unexplained_duplicate_blocks == 0 {
+                    "repeated blocks are fully accounted for by exact copies and uniform fill"
+                        .to_string()
+                } else {
+                    "repeated blocks observed; repetition alone does not establish encryption"
+                        .to_string()
+                },
             )
         } else if entropy >= 7.5 && unique_byte_count >= 200 && duplicate_block_count <= 1 {
             (
@@ -94,6 +119,7 @@ pub fn analyze_envelope(bytes: &[u8], reference: Option<&[u8]>) -> EnvelopeRepor
         evidence,
         likely_plaintext_header_len,
         reference_prefix_len,
+        repetition,
     }
 }
 
@@ -130,7 +156,7 @@ pub fn render_report(file: &Path, report: &EnvelopeReport, has_reference: bool) 
     }
 
     let (dot, classification) = match report.classification.as_str() {
-        "opaque-wrapper-likely" | "repetitive-or-ecb-like" => (
+        "opaque-wrapper-likely" => (
             palette.dot_warn(),
             palette.warn(render_classification(&report.classification)),
         ),
@@ -169,7 +195,7 @@ pub fn render_report(file: &Path, report: &EnvelopeReport, has_reference: bool) 
 pub fn render_classification(classification: &str) -> &str {
     match classification {
         "opaque-wrapper-likely" => "Opaque wrapper likely",
-        "repetitive-or-ecb-like" => "Repetitive payload / ECB-like signal",
+        "repetitive-payload" => "Repetitive payload",
         _ => "Structured or plaintext-like",
     }
 }
@@ -199,32 +225,6 @@ fn shannon_entropy(bytes: &[u8]) -> f64 {
             -p * p.log2()
         })
         .sum()
-}
-
-fn duplicate_block_stats(bytes: &[u8], block_size: usize) -> (usize, usize) {
-    if block_size == 0 || bytes.len() < block_size {
-        return (0, 0);
-    }
-    let total = bytes.len() / block_size;
-    let mut duplicate = 0usize;
-    if block_size == 16 {
-        let mut seen: HashSet<u128> = HashSet::with_capacity(total.min(1 << 20));
-        for block in bytes.chunks_exact(16) {
-            let mut buf = [0u8; 16];
-            buf.copy_from_slice(block);
-            if !seen.insert(u128::from_le_bytes(buf)) {
-                duplicate += 1;
-            }
-        }
-    } else {
-        let mut seen: HashSet<Vec<u8>> = HashSet::new();
-        for block in bytes.chunks_exact(block_size) {
-            if !seen.insert(block.to_vec()) {
-                duplicate += 1;
-            }
-        }
-    }
-    (duplicate, total)
 }
 
 fn common_prefix_len(left: &[u8], right: &[u8]) -> usize {
@@ -326,13 +326,13 @@ mod tests {
     }
 
     #[test]
-    fn repeated_16_byte_blocks_raise_ecb_like_signal() {
+    fn repeated_16_byte_blocks_are_not_encryption_evidence() {
         let mut blob = Vec::new();
         for _ in 0..256 {
             blob.extend_from_slice(b"0123456789ABCDEF");
         }
         let report = analyze_envelope(&blob, None);
-        assert_eq!(report.ecb_assessment, "ecb-plausible");
+        assert_eq!(report.ecb_assessment, "not-indicated");
         assert!(report.duplicate_block_count > 0);
     }
 
@@ -350,7 +350,7 @@ mod tests {
         let report = analyze_envelope(&blob, None);
         assert_eq!(report.duplicate_block_count, 32_767);
         assert_eq!(report.total_block_count, 65_536);
-        assert_eq!(report.ecb_assessment, "ecb-plausible");
+        assert_eq!(report.ecb_assessment, "not-indicated");
     }
 
     #[test]
@@ -378,7 +378,7 @@ mod tests {
         let structured = analyze_envelope(b"short structured input", None);
 
         assert!(opaque.is_encrypted_like());
-        assert!(repetitive.is_encrypted_like());
+        assert!(!repetitive.is_encrypted_like());
         assert!(!structured.is_encrypted_like());
     }
 }

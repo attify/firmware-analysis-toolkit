@@ -168,12 +168,6 @@ impl Palette {
         format!("{}: {}", self.key(key), value.as_ref())
     }
 
-    /// Right-pad `key` to `width` so a column of `kv` lines aligns on the colon.
-    pub fn kv_aligned(&self, key: &str, width: usize, value: impl AsRef<str>) -> String {
-        let padded = format!("{key:<width$}");
-        format!("{}: {}", self.key(padded), value.as_ref())
-    }
-
     /// Green status dot for a healthy/found line.
     pub fn dot_ok(&self) -> String {
         if self.enabled {

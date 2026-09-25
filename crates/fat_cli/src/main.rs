@@ -82,6 +82,7 @@ mod kernel_cmd;
 mod known_container;
 mod launch_guard;
 mod list_cmd;
+mod mcu_report;
 mod observe_cmd;
 mod patch_check_cmd;
 mod probe_cmd;
@@ -90,6 +91,7 @@ mod raw_cortex_m;
 mod raw_mips_pic;
 mod rehost_cmd;
 mod rehosting_trace_cmd;
+mod report;
 mod run_cmd;
 mod runtime_augment;
 mod runtime_plane_cmd;
@@ -105,6 +107,8 @@ mod style;
 mod taint_cmd;
 mod taint_cross_cmd;
 mod taint_query_cmd;
+mod terminal_table;
+mod terminal_text;
 mod trace_ingest_cmd;
 mod trust_boundary_cmd;
 mod verify_cmd;
@@ -698,6 +702,9 @@ enum Command {
         /// Output as JSON instead of structured text.
         #[arg(long)]
         json: bool,
+        /// Expand the overview with detailed findings and measurements.
+        #[arg(long)]
+        details: bool,
     },
     Extract {
         /// Project directory (positional).
@@ -2131,6 +2138,9 @@ enum InspectCommand {
         /// Output as JSON instead of structured text
         #[arg(long)]
         json: bool,
+        /// Expand image, startup, interrupt, and hardware details.
+        #[arg(long)]
+        details: bool,
     },
     /// Inspect family-backed peripheral and register surfaces for a raw MCU blob
     #[command(name = "peripheral-map")]
@@ -2255,9 +2265,12 @@ fn run() -> DynResult<()> {
             name,
             projects_dir,
         }) => cmd_new(&firmware, name.as_deref(), &projects_dir),
-        Some(Command::Identify { path, file, json }) => {
-            identify_cmd::run(path.as_deref(), file.as_deref(), json)
-        }
+        Some(Command::Identify {
+            path,
+            file,
+            json,
+            details,
+        }) => identify_cmd::run(path.as_deref(), file.as_deref(), json, details),
         Some(Command::Extract {
             project,
             project_flag,
@@ -2979,7 +2992,8 @@ fn run() -> DynResult<()> {
                 base,
                 family,
                 json,
-            } => inspect_cmd::run_mcu(&file, base.as_deref(), family.as_deref(), json),
+                details,
+            } => inspect_cmd::run_mcu(&file, base.as_deref(), family.as_deref(), json, details),
             InspectCommand::PeripheralMap {
                 file,
                 base,
@@ -3725,7 +3739,9 @@ fn cmd_extract(
             let mut message =
                 "firmware extraction produced no recoverable files; refusing an empty success state"
                     .to_string();
-            if container_probe.envelope.is_encrypted_like() {
+            if container_probe.envelope.is_encrypted_like()
+                || container_probe.envelope.classification == "repetitive-payload"
+            {
                 message.push_str(&format!(
                     "; envelope classification: {}; ecb_assessment: {}",
                     container_probe.envelope.classification,

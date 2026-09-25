@@ -100,6 +100,121 @@ fn build_stage1_security_blob() -> Vec<u8> {
     bytes
 }
 
+fn build_relocated_vector_image() -> Vec<u8> {
+    // The original fixture put code at file offset 0x4200, which actually
+    // supports base 0x08000000. An app loaded at 0x08004000 has it at 0x200.
+    let full = build_vector_table_image(0x0800_4200, Some(0x0800_4220), 2048);
+    let mut bytes = vec![0u8; 2048];
+    bytes[..128].copy_from_slice(&full[..128]);
+    bytes[0x200..0x224].copy_from_slice(&full[0x4200..0x4224]);
+    bytes
+}
+
+#[test]
+fn regression_inferred_mapping_does_not_change_selected_vector_table() {
+    let mut bytes = vec![0u8; 0x400];
+    let base = 0x0804_0000u32;
+    for (i, word) in [
+        0x2000_2000,
+        base + 0x21,
+        base + 0x25,
+        base + 0x29,
+        base + 0x25,
+        base + 0x25,
+        base + 0x25,
+        0,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        bytes[0x80 + i * 4..0x84 + i * 4].copy_from_slice(&word.to_le_bytes());
+    }
+    for i in 0..8 {
+        bytes[0xa0 + i * 4..0xa4 + i * 4].copy_from_slice(&0x4770_d100u32.to_le_bytes());
+    }
+    for (i, word) in [0x2000_2000, base + 0x101, base + 0x201, base + 0x301]
+        .into_iter()
+        .enumerate()
+    {
+        bytes[0x100 + i * 4..0x104 + i * 4].copy_from_slice(&word.to_le_bytes());
+    }
+    let file = write_temp_blob(&bytes);
+    let report = inspect_file(&McuInspectRequest {
+        file: file.path().into(),
+        user_base: None,
+        user_family: None,
+        bundle_root: None,
+        backend_preference: None,
+    })
+    .unwrap();
+    let selected = report
+        .identification
+        .as_ref()
+        .unwrap()
+        .vector_candidates
+        .iter()
+        .find(|candidate| candidate.accepted)
+        .unwrap()
+        .offset;
+    assert_eq!(selected, 0x100);
+    assert_eq!(
+        report.image_layout.as_ref().unwrap().candidate_offsets[0] as u64,
+        selected
+    );
+    assert_eq!(
+        report.vector_table.unwrap().entries[1].address,
+        base + 0x101
+    );
+    let hypotheses = build_address_hypotheses(&bytes);
+    assert_eq!(
+        classify_image_layout(&bytes, &hypotheses).candidate_offsets[0],
+        0x100
+    );
+}
+
+#[test]
+fn regression_unknown_mapping_is_not_borrowed_from_a_later_vector_table() {
+    let mut bytes = vec![0u8; 0x400];
+    for (offset, words) in [
+        (
+            0x80,
+            [0x2000_2000u32, 0x6000_0105, 0x6000_0201, 0x6000_0301],
+        ),
+        (
+            0x100,
+            [0x2000_2000u32, 0x0800_0105, 0x0800_0201, 0x0800_0301],
+        ),
+    ] {
+        for (i, word) in words.into_iter().enumerate() {
+            bytes[offset + i * 4..offset + i * 4 + 4].copy_from_slice(&word.to_le_bytes());
+        }
+    }
+    let file = write_temp_blob(&bytes);
+    let report = inspect_file(&McuInspectRequest {
+        file: file.path().into(),
+        user_base: None,
+        user_family: None,
+        bundle_root: None,
+        backend_preference: None,
+    })
+    .unwrap();
+    let identification = report.identification.unwrap();
+    assert_eq!(
+        identification
+            .vector_candidates
+            .iter()
+            .find(|c| c.accepted)
+            .unwrap()
+            .offset,
+        0x80
+    );
+    assert!(
+        report.address_hypotheses.is_none(),
+        "the later table's mapping must not be applied to the primary candidate"
+    );
+    assert!(report.startup_chain.is_none());
+}
+
 fn build_peripheral_surface_blob() -> Vec<u8> {
     let mut bytes = build_vector_table_image(0x0800_0200, Some(0x0800_0220), 0x900);
     let literals = [0x4000_4C00u32, 0x2400_21D0];
@@ -179,7 +294,7 @@ fn inspect_file_marks_weak_signal_blob_as_degraded() {
         .degradations
         .as_ref()
         .expect("degradations")
-        .contains(&InspectionDegradation::NonCortexMLikely));
+        .contains(&InspectionDegradation::WeakSignal));
 }
 
 #[test]
@@ -271,7 +386,7 @@ fn address_hypothesis_extractor_prefers_flash_base_for_full_flash_image() {
 
 #[test]
 fn address_hypothesis_extractor_handles_relocated_app_only_sample() {
-    let bytes = build_vector_table_image(0x0800_4200, Some(0x0800_4220), 2048);
+    let bytes = build_relocated_vector_image();
     let hypotheses = build_address_hypotheses(&bytes);
     assert!(!hypotheses.is_empty());
     assert_eq!(hypotheses[0].base, 0x0800_4000);
@@ -284,7 +399,7 @@ fn image_layout_extractor_distinguishes_full_flash_app_only_and_concat() {
     let full_layout = classify_image_layout(&full_flash, &full_hypotheses);
     assert_eq!(full_layout.kind.value, ImageLayoutKind::FullFlashDump);
 
-    let app_only = build_vector_table_image(0x0800_4200, Some(0x0800_4220), 2048);
+    let app_only = build_relocated_vector_image();
     let app_hypotheses = build_address_hypotheses(&app_only);
     let app_layout = classify_image_layout(&app_only, &app_hypotheses);
     assert_eq!(app_layout.kind.value, ImageLayoutKind::AppOnlyImage);
@@ -301,7 +416,7 @@ fn image_layout_extractor_distinguishes_full_flash_app_only_and_concat() {
 }
 
 #[test]
-fn vector_table_extractor_counts_active_entries_and_clusters_default_handlers() {
+fn vector_table_extractor_counts_handlers_without_treating_aliases_as_defaults() {
     let mut bytes = Vec::new();
     write_u32(&mut bytes, 0x2401_A058);
     write_u32(&mut bytes, 0x0800_0201);
@@ -315,8 +430,9 @@ fn vector_table_extractor_counts_active_entries_and_clusters_default_handlers() 
     let hypotheses = build_address_hypotheses(&bytes);
     let layout = classify_image_layout(&bytes, &hypotheses);
     let vector_table = extract_vector_table(&bytes, &layout, &hypotheses).expect("vector table");
-    assert_eq!(vector_table.active_count, 3);
-    assert!(vector_table.default_handler_count >= 16);
+    assert_eq!(vector_table.active_count, 14);
+    assert_eq!(vector_table.default_handler_count, 0);
+    assert_eq!(vector_table.repeated_targets[0].reference_count, 11);
 }
 
 /// The scan used to run past the end of a short table and report
@@ -370,7 +486,7 @@ fn vector_table_scan_rejects_an_in_region_word_with_no_thumb_bit() {
 /// A zero slot is a legitimate reserved vector position and must not be
 /// mistaken for the end of the table.
 #[test]
-fn vector_table_scan_treats_a_zero_slot_as_reserved_not_as_the_table_end() {
+fn vector_table_scan_treats_a_zero_slot_as_unpopulated_not_as_the_table_end() {
     let mut bytes = Vec::new();
     write_u32(&mut bytes, 0x2401_A058);
     write_u32(&mut bytes, 0x0800_0201);
@@ -413,20 +529,21 @@ fn vector_table_extractor_reports_candidate_and_repeated_target_measurements() {
     let vector_table = extract_vector_table(&bytes, &layout, &hypotheses).expect("vector table");
 
     assert_eq!(vector_table.scanned_word_count, 20);
-    assert_eq!(vector_table.handler_candidate_count, 15);
+    assert_eq!(vector_table.handler_candidate_count, 10);
     assert_eq!(vector_table.unique_aligned_target_count, 4);
     assert_eq!(
         vector_table.repeated_targets[0].aligned_address,
         0x0800_2000
     );
-    assert_eq!(vector_table.repeated_targets[0].reference_count, 12);
+    assert_eq!(vector_table.repeated_targets[0].reference_count, 7);
     assert_eq!(vector_table.scan_boundary, "available-bytes");
     assert!(!vector_table.scan_boundary_rationale.is_empty());
 }
 
 #[test]
 fn vector_table_extractor_respects_stm32h7_ivt_boundary_and_ignores_suffix_words() {
-    let mut bytes = build_vector_table_image(0x0800_0200, Some(0x0800_0220), 4096);
+    // Keep mapped code beyond the full 166-word table rather than inside it.
+    let mut bytes = build_vector_table_image(0x0800_0400, Some(0x0800_0420), 4096);
     for index in 32..166 {
         let start = index * 4;
         bytes[start..start + 4].copy_from_slice(&0x0800_2001u32.to_le_bytes());
@@ -442,7 +559,7 @@ fn vector_table_extractor_respects_stm32h7_ivt_boundary_and_ignores_suffix_words
 
     assert_eq!(vector_table.entry_count, 166);
     assert_eq!(vector_table.scanned_word_count, 166);
-    assert_eq!(vector_table.handler_candidate_count, 165);
+    assert_eq!(vector_table.handler_candidate_count, 160);
     assert_eq!(vector_table.unique_aligned_target_count, 4);
     assert_eq!(vector_table.scan_boundary, "family-vector-limit");
     assert!(vector_table
@@ -529,7 +646,7 @@ fn execution_model_reports_bare_metal_supporting_evidence() {
         .filter(|item| matches!(item.kind, EvidenceHeuristicKind::RtosMarkerAbsent { .. }))
         .count();
     assert!(absent >= 4, "expected all RTOS families reported absent");
-    assert!(execution_model
+    assert!(!execution_model
         .supporting_evidence
         .iter()
         .any(|item| item.kind == EvidenceHeuristicKind::SysTickHandlerDefault));
@@ -542,7 +659,7 @@ fn execution_model_reports_bare_metal_supporting_evidence() {
         execution_model.metrics.vector_table_entries >= 16,
         "expected the systick vector index to be covered"
     );
-    assert!(execution_model.metrics.non_default_irq_handlers >= 2);
+    assert_eq!(execution_model.metrics.non_default_irq_handlers, 0);
     assert_eq!(
         execution_model.metrics.loop_heads_total,
         execution_model.loop_heads.len() as u32
@@ -580,7 +697,7 @@ fn execution_model_rtos_marker_forces_rtos_classification() {
 }
 
 #[test]
-fn execution_model_custom_systick_is_anti_evidence() {
+fn execution_model_populated_systick_does_not_prove_isr_driven_execution() {
     let mut bytes = build_vector_table_image(0x0800_0200, Some(0x0800_0220), 0x320);
     let systick_handler = 0x0800_5001u32;
     let word_offset = 15 * 4;
@@ -600,13 +717,11 @@ fn execution_model_custom_systick_is_anti_evidence() {
         extract_execution_model(&bytes, Some(&chain), Some(&vector_table), &layout)
             .expect("execution model");
 
-    let custom = execution_model
+    assert!(!execution_model
         .anti_evidence
         .iter()
-        .find(|item| item.kind == EvidenceHeuristicKind::SysTickHandlerCustom)
-        .expect("custom systick anti-evidence");
-    assert_eq!(custom.artifact_ref, Some(0x0800_5000));
-    assert_eq!(execution_model.model.value, ExecutionModelKind::IsrDriven);
+        .any(|item| item.kind == EvidenceHeuristicKind::SysTickHandlerCustom));
+    assert_eq!(execution_model.model.value, ExecutionModelKind::Unknown);
 }
 
 #[test]
@@ -633,7 +748,7 @@ fn execution_model_report_json_round_trip_keeps_evidence() {
     assert!(serialized.contains("supporting_evidence"));
     assert!(serialized.contains("anti_evidence"));
     assert!(serialized.contains("rtos-marker-absent"));
-    assert!(serialized.contains("sys-tick-handler-default"));
+    assert!(!serialized.contains("sys-tick-handler-default"));
 }
 
 #[test]
@@ -1083,4 +1198,26 @@ fn peripheral_map_detects_base_address_literals_for_system_init_peripherals() {
                 .collect::<Vec<_>>()
         );
     }
+}
+
+#[test]
+fn regression_shared_systick_does_not_prove_default_role_or_isr_driven_model() {
+    let bytes = build_vector_table_image(0x0800_0200, Some(0x0800_0220), 0x320);
+    let hypotheses = build_address_hypotheses(&bytes);
+    let layout = classify_image_layout(&bytes, &hypotheses);
+    let table = extract_vector_table(&bytes, &layout, &hypotheses).unwrap();
+    assert!(table
+        .repeated_targets
+        .iter()
+        .any(|target| target.aligned_address == (table.entries[15].address & !1)));
+    let model = extract_execution_model(&bytes, None, Some(&table), &layout).unwrap();
+    assert_eq!(model.model.value, ExecutionModelKind::Unknown);
+    assert!(!model
+        .supporting_evidence
+        .iter()
+        .any(|e| e.kind == EvidenceHeuristicKind::SysTickHandlerDefault));
+    assert!(!model
+        .anti_evidence
+        .iter()
+        .any(|e| e.kind == EvidenceHeuristicKind::SysTickHandlerCustom));
 }

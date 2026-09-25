@@ -80,6 +80,25 @@ pub fn enrich_vector_table(
         provenance
             .notes
             .push("family-pack selected for vector enrichment".to_string());
+        if let Some(source) = resolution.pack.vector_source {
+            provenance.notes.push(format!(
+                "Vector profile source: {} ({}; {})",
+                source.title, source.location, source.url
+            ));
+        }
+        provenance.notes.extend(
+            resolution
+                .pack
+                .memory_notes
+                .iter()
+                .map(|note| note.to_string()),
+        );
+        if let Some(core) = resolution.pack.core {
+            provenance.notes.push(format!(
+                "{} is a profile-derived core refinement: {} ({})",
+                core.name, core.source.title, core.source.url
+            ));
+        }
     }
 
     let mut labeled = false;

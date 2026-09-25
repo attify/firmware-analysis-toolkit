@@ -195,6 +195,57 @@ impl DecodedFunction {
     }
 }
 
+/// Decode one complete instruction at a mapped address. No subsequent bytes are
+/// interpreted as instructions and no execution or predicate state is inferred.
+pub fn decode_instruction(
+    bytes: &[u8],
+    address: u32,
+    addressing: &ImageAddressing,
+) -> Option<ThumbInsn> {
+    if address & 1 != 0 {
+        return None;
+    }
+    let offset = addressing.offset_of(address)?;
+    if offset.checked_add(2)? > addressing.image_len.min(bytes.len()) {
+        return None;
+    }
+    let first = read_u16(bytes, addressing, address)?;
+    let wide = matches!(first & 0xf800, 0xe800 | 0xf000 | 0xf800);
+    if wide && offset.checked_add(4)? > addressing.image_len.min(bytes.len()) {
+        return None;
+    }
+    let mut op = if wide {
+        let second = read_u16(bytes, addressing, address.checked_add(2)?)?;
+        decode_wide(bytes, addressing, first, second, address)
+    } else {
+        decode_narrow(bytes, addressing, first, address)
+    };
+    if matches!(op, ThumbOp::LoadLiteral { .. }) {
+        // Only a supported word literal wholly inside the selected mapping can
+        // establish a constant. The legacy shape decoder has broader semantics.
+        let pool = if wide {
+            let second = read_u16(bytes, addressing, address.checked_add(2)?)?;
+            (first == 0xf8df)
+                .then(|| (address.wrapping_add(4) & !3).wrapping_add(u32::from(second & 0xfff)))
+        } else {
+            Some((address.wrapping_add(4) & !3).wrapping_add(u32::from(first & 0xff) * 4))
+        };
+        if pool
+            .and_then(|pool| addressing.offset_of(pool))
+            .and_then(|pool| pool.checked_add(4))
+            .is_none_or(|end| end > addressing.image_len.min(bytes.len()))
+        {
+            op = ThumbOp::Other;
+        }
+    }
+    Some(ThumbInsn {
+        address,
+        width: if wide { 4 } else { 2 },
+        op,
+        predicated: false,
+    })
+}
+
 /// Decode the function body at `start`.
 ///
 /// Decoding stops at the first terminator that sits at or past every forward
@@ -564,13 +615,15 @@ fn decode_wide(
                 },
                 None => ThumbOp::Other,
             },
-            0x8000 => match wide_branch_target(first, second, address, false) {
-                Some(target) => ThumbOp::Branch {
-                    target,
-                    conditional: true,
-                },
-                None => ThumbOp::Other,
-            },
+            0x8000 if (first >> 6) & 0xf < 0xe => {
+                match wide_branch_target(first, second, address, false) {
+                    Some(target) => ThumbOp::Branch {
+                        target,
+                        conditional: true,
+                    },
+                    None => ThumbOp::Other,
+                }
+            }
             _ => ThumbOp::Other,
         };
     }
@@ -719,22 +772,33 @@ fn thumb_expand_imm(first: u16, second: u16) -> Option<u32> {
     Some(value.rotate_right(rotation))
 }
 
-fn wide_branch_target(first: u16, second: u16, address: u32, j_encoded: bool) -> Option<u32> {
+pub(crate) fn wide_branch_target(
+    first: u16,
+    second: u16,
+    address: u32,
+    j_encoded: bool,
+) -> Option<u32> {
+    if !j_encoded && (first >> 6) & 0xf >= 0xe {
+        // The reserved condition values encode other instructions, including barriers.
+        return None;
+    }
     let s = u32::from((first >> 10) & 1);
     let j1 = u32::from((second >> 13) & 1);
     let j2 = u32::from((second >> 11) & 1);
     let imm11 = u32::from(second & 0x07ff);
-    let (imm10, i1, i2) = if j_encoded {
-        (u32::from(first & 0x03ff), (!(j1 ^ s)) & 1, (!(j2 ^ s)) & 1)
+    let signed = if j_encoded {
+        let imm10 = u32::from(first & 0x03ff);
+        let i1 = (!(j1 ^ s)) & 1;
+        let i2 = (!(j2 ^ s)) & 1;
+        let imm25 = (s << 24) | (i1 << 23) | (i2 << 22) | (imm10 << 12) | (imm11 << 1);
+        // BL / unconditional B.W: sign-extend S:I1:I2:imm10:imm11:0.
+        ((imm25 << 7) as i32) >> 7
     } else {
-        // B<cond>.W T3 carries a 6-bit immediate and a 4-bit condition.
-        (u32::from(first & 0x003f), j1, j2)
-    };
-    let imm25 = (s << 24) | (i1 << 23) | (i2 << 22) | (imm10 << 12) | (imm11 << 1);
-    let signed = if imm25 & (1 << 24) != 0 {
-        (imm25 | 0xfe00_0000) as i32
-    } else {
-        imm25 as i32
+        // B<cond>.W T3: S:J2:J1:imm6:imm11:0 is a 21-bit offset.
+        // J1/J2 are neither inverted nor ordered as in the BL encoding.
+        let imm6 = u32::from(first & 0x003f);
+        let imm21 = (s << 20) | (j2 << 19) | (j1 << 18) | (imm6 << 12) | (imm11 << 1);
+        ((imm21 << 11) as i32) >> 11
     };
     Some(address.wrapping_add(4).wrapping_add_signed(signed))
 }

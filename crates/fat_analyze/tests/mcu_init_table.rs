@@ -413,7 +413,7 @@ fn a_short_vector_table_is_not_extended_into_the_code_that_follows_it() {
     let vector_table = extract_vector_table(&bytes, &layout, &hypotheses).expect("vector table");
 
     assert_eq!(vector_table.entry_count, 8, "declared table is 8 entries");
-    assert_eq!(vector_table.scan_boundary, "implausible-handler-word");
+    assert_eq!(vector_table.scan_boundary, "mapped-handler");
     // The flash-controller MMIO base SystemInit writes; never a handler.
     assert!(vector_table
         .entries

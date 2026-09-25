@@ -1764,8 +1764,8 @@ fn fat_extract_zero_file_error_includes_repetitive_envelope_measurements() {
     assert!(!output.status.success(), "{output:?}");
     let stderr = String::from_utf8_lossy(&output.stderr);
     for evidence in [
-        "classification: repetitive-or-ecb-like",
-        "ecb_assessment: ecb-plausible",
+        "classification: repetitive-payload",
+        "ecb_assessment: not-indicated",
     ] {
         assert!(stderr.contains(evidence), "missing {evidence}:\n{stderr}");
     }

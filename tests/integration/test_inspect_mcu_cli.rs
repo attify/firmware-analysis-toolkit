@@ -2,6 +2,150 @@ use serde_json::Value;
 use std::process::Command;
 use tempfile::tempdir;
 
+fn build_profile_register_blob(dereference: bool) -> Vec<u8> {
+    let mut bytes = vec![0u8; 0x400];
+    for (index, value) in [0x1000_1000, 0x1fff_0105, 0x1fff_0121, 0x1fff_0121]
+        .into_iter()
+        .enumerate()
+    {
+        write_vector_word(&mut bytes, index, value);
+    }
+    for (offset, instruction) in [
+        (0x104, 0x4801u16), // ldr r0, [pc, #4] -> pool at 0x10c
+        (0x106, if dereference { 0x6801 } else { 0xbf00 }),
+        (0x108, 0x4770), // bx lr
+        (0x10a, 0xbf00),
+        (0x120, 0x4770),
+    ] {
+        bytes[offset..offset + 2].copy_from_slice(&instruction.to_le_bytes());
+    }
+    bytes[0x10c..0x110].copy_from_slice(&0xe000_e010u32.to_le_bytes());
+    let marker = b"NXP LPC134X IFLASH";
+    bytes[0x300..0x300 + marker.len()].copy_from_slice(marker);
+    bytes
+}
+
+#[test]
+fn fat_inspect_mcu_exposes_bounded_code_and_profile_register_evidence() {
+    let dir = tempdir().unwrap();
+    let file = dir.path().join("anonymous.bin");
+    std::fs::write(&file, build_profile_register_blob(true)).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_fat"))
+        .envs([("FAT_COLOR", "never"), ("COLUMNS", "120")])
+        .args(["inspect", "mcu", "--file", file.to_str().unwrap(), "--json"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert!(
+        report["code_analysis"].is_object(),
+        "missing code evidence: {report}"
+    );
+    assert!(
+        report["register_annotations"].is_object(),
+        "missing register evidence: {report}"
+    );
+    assert_eq!(
+        report["fast_profile"]["active_interrupt_count"],
+        report["vector_table"]["active_count"]
+    );
+    assert_eq!(report["vector_table"]["default_handler_count"], 0);
+    let accesses = report["code_analysis"]["memory_accesses"]
+        .as_array()
+        .unwrap();
+    assert!(accesses
+        .iter()
+        .any(|access| access["instruction_offset"] == 0x106 && access["target"] == 0xe000_e010u32));
+    assert_eq!(report["register_annotations"]["core_name"], "ARM Cortex-M3");
+    let annotated = report["register_annotations"]["accesses"]
+        .as_array()
+        .unwrap();
+    assert!(annotated
+        .iter()
+        .any(|access| access["instruction_offset"] == 0x106
+            && access["names"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|name| name["peripheral"] == "SysTick" && name["register"] == "CTRL")));
+    let ranges = report["code_analysis"]["instruction_ranges"]
+        .as_array()
+        .unwrap();
+    assert!(
+        ranges.iter().all(|range| {
+            let start = range["file_offset"].as_u64().unwrap();
+            let end = start + range["length"].as_u64().unwrap();
+            end <= 0x10c || start >= 0x110
+        }),
+        "literal pool was classified as code: {ranges:?}"
+    );
+}
+
+#[test]
+fn fat_inspect_mcu_human_output_separates_code_registers_and_constants() {
+    let dir = tempdir().unwrap();
+    let file = dir.path().join("anonymous.bin");
+    std::fs::write(&file, build_profile_register_blob(true)).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_fat"))
+        .envs([("FAT_COLOR", "never"), ("COLUMNS", "120")])
+        .args(["inspect", "mcu", "--file", file.to_str().unwrap()])
+        .arg("--details")
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let text = String::from_utf8_lossy(&output.stdout);
+    for expected in [
+        "Code analysis",
+        "Function candidate",
+        "Hardware",
+        "Entries scanned",
+        "Entries retained",
+        "ARM Cortex-M3",
+        "read",
+        "4 B",
+        "0xE000E010",
+        "SysTick.CTRL",
+        "Hardware registers accessed",
+        "Address constants",
+    ] {
+        assert!(text.contains(expected), "missing {expected}: {text}");
+    }
+}
+
+#[test]
+fn fat_inspect_mcu_literal_reference_is_not_a_register_access() {
+    let dir = tempdir().unwrap();
+    let file = dir.path().join("anonymous.bin");
+    std::fs::write(&file, build_profile_register_blob(false)).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_fat"))
+        .envs([("FAT_COLOR", "never"), ("COLUMNS", "120")])
+        .args(["inspect", "mcu", "--file", file.to_str().unwrap(), "--json"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert!(report["code_analysis"]["memory_accesses"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+    assert!(!report["code_analysis"]["literal_references"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+    assert!(report["register_annotations"]["accesses"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+    assert!(!report["register_annotations"]["address_references"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+}
+
 fn write_u32(buf: &mut Vec<u8>, value: u32) {
     buf.extend_from_slice(&value.to_le_bytes());
 }
@@ -141,6 +285,7 @@ fn build_relocated_stm32h7_blob_with_stack_at_sram_end() -> Vec<u8> {
 #[test]
 fn fat_inspect_mcu_help_mentions_base_and_family() {
     let output = Command::new(env!("CARGO_BIN_EXE_fat"))
+        .envs([("FAT_COLOR", "never"), ("COLUMNS", "120")])
         .args(["inspect", "mcu", "--help"])
         .output()
         .expect("fat inspect mcu help runs");
@@ -155,6 +300,7 @@ fn fat_inspect_mcu_help_mentions_base_and_family() {
         stdout.contains("--family"),
         "missing --family in help: {stdout}"
     );
+    assert!(stdout.contains("--details"), "{stdout}");
 }
 
 #[test]
@@ -164,6 +310,7 @@ fn fat_inspect_mcu_json_emits_evidence_report_and_provenance() {
     std::fs::write(&blob, build_mcu_blob()).expect("blob");
 
     let output = Command::new(env!("CARGO_BIN_EXE_fat"))
+        .envs([("FAT_COLOR", "never"), ("COLUMNS", "120")])
         .args([
             "inspect",
             "mcu",
@@ -206,7 +353,9 @@ fn fat_inspect_mcu_human_output_renders_evidence_sections() {
     std::fs::write(&blob, build_mcu_blob()).expect("blob");
 
     let output = Command::new(env!("CARGO_BIN_EXE_fat"))
+        .envs([("FAT_COLOR", "never"), ("COLUMNS", "120")])
         .args(["inspect", "mcu", "--file", blob.to_str().expect("blob")])
+        .arg("--details")
         .output()
         .expect("fat inspect mcu runs");
 
@@ -220,12 +369,10 @@ fn fat_inspect_mcu_human_output_renders_evidence_sections() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     for needle in [
         "MCU inspection",
-        "Architecture",
+        "Cortex-M",
         "Address hypotheses",
         "Startup chain",
-        "Execution model",
-        "Peripheral map",
-        "Security controls",
+        "Peripheral candidates",
     ] {
         assert!(
             stdout.contains(needle),
@@ -233,6 +380,9 @@ fn fat_inspect_mcu_human_output_renders_evidence_sections() {
         );
     }
     assert!(!stdout.contains("Next steps"), "stdout:\n{stdout}");
+    for removed in ["Security controls", "Evidence type", "Observation"] {
+        assert!(!stdout.contains(removed), "unexpected {removed}:\n{stdout}");
+    }
 }
 
 #[test]
@@ -242,6 +392,7 @@ fn fat_inspect_mcu_human_output_renders_every_json_peripheral() {
     std::fs::write(&blob, build_many_peripheral_blob()).expect("blob");
 
     let json_output = Command::new(env!("CARGO_BIN_EXE_fat"))
+        .envs([("FAT_COLOR", "never"), ("COLUMNS", "120")])
         .args([
             "inspect",
             "mcu",
@@ -251,6 +402,7 @@ fn fat_inspect_mcu_human_output_renders_every_json_peripheral() {
             "STM32H7",
             "--json",
         ])
+        .arg("--details")
         .output()
         .expect("fat inspect mcu json runs");
     assert!(json_output.status.success());
@@ -264,6 +416,7 @@ fn fat_inspect_mcu_human_output_renders_every_json_peripheral() {
     );
 
     let text_output = Command::new(env!("CARGO_BIN_EXE_fat"))
+        .envs([("FAT_COLOR", "never"), ("COLUMNS", "120")])
         .args([
             "inspect",
             "mcu",
@@ -272,6 +425,7 @@ fn fat_inspect_mcu_human_output_renders_every_json_peripheral() {
             "--family",
             "STM32H7",
         ])
+        .arg("--details")
         .output()
         .expect("fat inspect mcu text runs");
     assert!(text_output.status.success());
@@ -280,22 +434,31 @@ fn fat_inspect_mcu_human_output_renders_every_json_peripheral() {
     for peripheral in peripherals {
         let name = peripheral["peripheral_name"].as_str().expect("name");
         let base = peripheral["base"].as_u64().expect("base");
-        let expected = format!("{name} @ 0x{base:08X}");
+        let expected = format!("{name}|0x{base:08X}");
         assert!(
-            stdout.contains(&expected),
+            stdout.lines().any(|line| line
+                .trim()
+                .trim_matches('│')
+                .split('│')
+                .take(2)
+                .map(str::trim)
+                .collect::<Vec<_>>()
+                .join("|")
+                == expected),
             "text output omitted JSON peripheral {expected}:\n{stdout}"
         );
     }
-    assert!(stdout.contains("TIM6 @"), "stdout:\n{stdout}");
+    assert!(stdout.contains("TIM6"), "stdout:\n{stdout}");
 }
 
 #[test]
-fn fat_inspect_mcu_human_output_renders_vector_summary_and_every_active_external_irq() {
+fn fat_inspect_mcu_human_output_renders_vector_summary_and_every_populated_external_irq() {
     let dir = tempdir().expect("tempdir");
     let blob = dir.path().join("mcu.bin");
     std::fs::write(&blob, build_labeled_vector_table_blob()).expect("blob");
 
     let json_output = Command::new(env!("CARGO_BIN_EXE_fat"))
+        .envs([("FAT_COLOR", "never"), ("COLUMNS", "120")])
         .args([
             "inspect",
             "mcu",
@@ -305,6 +468,7 @@ fn fat_inspect_mcu_human_output_renders_vector_summary_and_every_active_external
             "STM32H7",
             "--json",
         ])
+        .arg("--details")
         .output()
         .expect("fat inspect mcu json runs");
     assert!(json_output.status.success());
@@ -320,9 +484,12 @@ fn fat_inspect_mcu_human_output_renders_vector_summary_and_every_active_external
                 && entry["handler_kind"] == "interrupt"
         })
         .collect::<Vec<_>>();
-    assert_eq!(active_irqs.len(), 3);
+    assert_eq!(active_irqs.len(), 150);
+    assert_eq!(vector_table["default_handler_count"], 0);
+    assert_eq!(vector_table["external_irq_count"], 150);
 
     let text_output = Command::new(env!("CARGO_BIN_EXE_fat"))
+        .envs([("FAT_COLOR", "never"), ("COLUMNS", "120")])
         .args([
             "inspect",
             "mcu",
@@ -331,36 +498,42 @@ fn fat_inspect_mcu_human_output_renders_vector_summary_and_every_active_external
             "--family",
             "STM32H7",
         ])
+        .arg("--details")
         .output()
         .expect("fat inspect mcu text runs");
     assert!(text_output.status.success());
     let stdout = String::from_utf8_lossy(&text_output.stdout);
     assert!(stdout.contains("Vector table"), "stdout:\n{stdout}");
     assert!(
-        stdout.contains("Entries scanned:     166"),
+        stdout.lines().any(|line| line
+            .split_once(':')
+            .is_some_and(|(key, value)| key.trim() == "Entries scanned" && value.trim() == "166")),
         "stdout:\n{stdout}"
     );
-    assert!(
-        stdout.contains("Default-handler positions:"),
-        "stdout:\n{stdout}"
-    );
-    assert!(
-        stdout.contains("Default target:      0x08000400 (147 positions)"),
-        "stdout:\n{stdout}"
-    );
-    assert!(
-        stdout.contains("Active external IRQs: 3"),
-        "stdout:\n{stdout}"
-    );
+    assert!(stdout.contains("150 external IRQs"), "stdout:\n{stdout}");
+
+    assert!(!stdout.contains("Default/custom IRQ handler roles: unresolved"));
+    assert!(!stdout.contains("non-default IRQ handlers: 0"));
 
     for entry in active_irqs {
         let index = entry["index"].as_u64().expect("index");
         let irq = index - 16;
-        let label = entry["family_label"].as_str().expect("family label");
+        let label = entry["family_label"]
+            .as_str()
+            .map(|label| format!(" {label}"))
+            .unwrap_or_default();
         let address = entry["address"].as_u64().expect("address");
-        let expected = format!("IRQ {irq} (vector {index}) {label} @ 0x{address:08X}");
+        let handler = address & !1;
+        let expected = format!("{index}: IRQ {irq}{label}|0x{handler:08X}|0x{address:08X}");
         assert!(
-            stdout.contains(&expected),
+            stdout.lines().any(|line| line
+                .trim()
+                .trim_matches('│')
+                .split('│')
+                .map(str::trim)
+                .collect::<Vec<_>>()
+                .join("|")
+                == expected),
             "text output omitted active IRQ {expected}:\n{stdout}"
         );
     }
@@ -373,6 +546,7 @@ fn fat_inspect_mcu_recovers_relocated_stm32h7_with_stack_at_sram_end() {
     std::fs::write(&blob, build_relocated_stm32h7_blob_with_stack_at_sram_end()).expect("blob");
 
     let output = Command::new(env!("CARGO_BIN_EXE_fat"))
+        .envs([("FAT_COLOR", "never"), ("COLUMNS", "120")])
         .args([
             "inspect",
             "mcu",
@@ -409,6 +583,7 @@ fn fat_inspect_mcu_weak_signal_returns_degraded_well_formed_json() {
     std::fs::write(&blob, vec![0x41u8; 128]).expect("blob");
 
     let output = Command::new(env!("CARGO_BIN_EXE_fat"))
+        .envs([("FAT_COLOR", "never"), ("COLUMNS", "120")])
         .args([
             "inspect",
             "mcu",
@@ -429,10 +604,7 @@ fn fat_inspect_mcu_weak_signal_returns_degraded_well_formed_json() {
     let report: Value = serde_json::from_slice(&output.stdout).expect("json");
     assert_eq!(report["schema_version"], "mcu-inspection/v1");
     assert!(report.get("degradations").is_some());
-    assert_eq!(
-        report["degradations"],
-        serde_json::json!(["weak-signal", "non-cortex-m-likely"])
-    );
+    assert_eq!(report["degradations"], serde_json::json!(["weak-signal"]));
     assert!(
         report.get("peripheral_map").is_none(),
         "weak-signal blobs should not invent peripheral evidence: {report}"
@@ -450,6 +622,7 @@ fn fat_inspect_mcu_rejects_malformed_base_override() {
     std::fs::write(&blob, build_mcu_blob()).expect("blob");
 
     let output = Command::new(env!("CARGO_BIN_EXE_fat"))
+        .envs([("FAT_COLOR", "never"), ("COLUMNS", "120")])
         .args([
             "inspect",
             "mcu",
@@ -486,6 +659,7 @@ fn init_table_fixture(name: &str) -> std::path::PathBuf {
 fn fat_inspect_mcu_json_reports_the_scatter_load_init_table() {
     let fixture = init_table_fixture("scatter-load.bin");
     let output = Command::new(env!("CARGO_BIN_EXE_fat"))
+        .envs([("FAT_COLOR", "never"), ("COLUMNS", "120")])
         .args([
             "inspect",
             "mcu",
@@ -532,12 +706,14 @@ fn fat_inspect_mcu_json_reports_the_scatter_load_init_table() {
 fn fat_inspect_mcu_human_output_renders_the_cmsis_init_table() {
     let fixture = init_table_fixture("cmsis-copy-zero-os.bin");
     let output = Command::new(env!("CARGO_BIN_EXE_fat"))
+        .envs([("FAT_COLOR", "never"), ("COLUMNS", "120")])
         .args([
             "inspect",
             "mcu",
             "--file",
             fixture.to_str().expect("fixture path"),
         ])
+        .arg("--details")
         .output()
         .expect("fat inspect mcu runs");
 
@@ -562,24 +738,222 @@ fn fat_inspect_mcu_human_output_renders_the_cmsis_init_table() {
     );
     // Walking past the reset stub is the point of the change.
     assert!(stdout.contains("1: SystemInit"), "{stdout}");
-    assert!(stdout.contains("2: Main"), "{stdout}");
+    assert!(stdout.contains("2: main"), "{stdout}");
 }
 
 #[test]
-fn fat_inspect_mcu_human_output_notes_a_missing_init_table() {
+fn fat_inspect_mcu_human_output_omits_a_missing_init_table() {
     let dir = tempdir().expect("tempdir");
     let blob = dir.path().join("mcu.bin");
     std::fs::write(&blob, build_mcu_blob()).expect("blob");
 
     let output = Command::new(env!("CARGO_BIN_EXE_fat"))
+        .envs([("FAT_COLOR", "never"), ("COLUMNS", "120")])
         .args(["inspect", "mcu", "--file", blob.to_str().expect("blob")])
         .output()
         .expect("fat inspect mcu runs");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(!stdout.contains("Init descriptor table"), "{stdout}");
     assert!(
-        stdout.contains("no init descriptor table recovered"),
+        !stdout.contains("no init descriptor table recovered"),
         "{stdout}"
+    );
+}
+
+fn inspect_output(path: &std::path::Path, json: bool, details: bool) -> String {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_fat"));
+    command
+        .envs([("FAT_COLOR", "never"), ("COLUMNS", "120")])
+        .args(["inspect", "mcu", "--file", path.to_str().unwrap()]);
+    if json {
+        command.arg("--json");
+    }
+    if details {
+        command.arg("--details");
+    }
+    let output = command.output().expect("inspect runs");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).unwrap()
+}
+
+#[test]
+fn fat_inspect_mcu_concise_report_keeps_findings_and_json_diagnostics() {
+    let dir = tempdir().unwrap();
+    let file = dir.path().join("anonymous.bin");
+    std::fs::write(&file, build_profile_register_blob(true)).unwrap();
+    let before: Value = serde_json::from_str(&inspect_output(&file, true, false)).unwrap();
+    let text = inspect_output(&file, false, true);
+    let after: Value = serde_json::from_str(&inspect_output(&file, true, false)).unwrap();
+    assert_eq!(before, after, "human rendering changed the JSON report");
+    assert!(!before["code_analysis"]["notes"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+    assert!(!before["register_annotations"]["notes"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+    assert!(before["init_table"].is_null());
+    assert!(before["system_init_effects"].is_null());
+    assert!(
+        before["peripheral_map"].is_null()
+            || before["peripheral_map"]["uses"]
+                .as_array()
+                .is_some_and(Vec::is_empty)
+    );
+    for finding in [
+        "Vector table",
+        "Code analysis",
+        "Hardware",
+        "NXP LPC134x",
+        "0x1FFF0105",
+        "0xE000E010",
+        "SysTick.CTRL",
+        "Hardware registers accessed",
+        "Address constants",
+    ] {
+        assert!(text.contains(finding), "lost finding {finding}: {text}");
+    }
+    for absent in [
+        "Evidence notes & limits",
+        "Degradations",
+        "Init descriptor table",
+        "SystemInit effects",
+        "Peripheral candidates",
+        "Initialization descriptors",
+        "Analysis stops",
+    ] {
+        assert!(
+            !text.contains(absent),
+            "unexpected empty/diagnostic content {absent}: {text}"
+        );
+    }
+}
+
+#[test]
+fn fat_inspect_mcu_concise_unmatched_report_omits_empty_sections_but_json_keeps_reasons() {
+    let dir = tempdir().unwrap();
+    let file = dir.path().join("unrecognized.bin");
+    std::fs::write(&file, [0x41u8; 128]).unwrap();
+    let before: Value = serde_json::from_str(&inspect_output(&file, true, false)).unwrap();
+    let text = inspect_output(&file, false, false);
+    let after: Value = serde_json::from_str(&inspect_output(&file, true, true)).unwrap();
+    assert_eq!(before, after);
+    assert_eq!(before["degradations"], serde_json::json!(["weak-signal"]));
+    assert!(before["code_analysis"].is_null());
+    assert!(before["vector_table"].is_null());
+    assert!(text.contains("unrecognized.bin"), "{text}");
+    assert!(text.lines().any(|line| {
+        line.split_once(':')
+            .is_some_and(|(key, value)| key.trim() == "Size" && value.contains("128"))
+    }));
+    for absent in [
+        "Architecture",
+        "Family",
+        "Evidence notes & limits",
+        "Degradations",
+        "Address hypotheses",
+        "Vector table",
+        "Startup chain",
+        "Code analysis",
+        "Hardware",
+        "Init descriptor table",
+        "SystemInit effects",
+        "SRAM partition",
+        "Execution model",
+        "Peripheral candidates",
+        "Peripheral surface",
+        "Security controls",
+        "ISR / shared state",
+    ] {
+        assert!(
+            !text.contains(absent),
+            "unexpected unmatched section {absent}: {text}"
+        );
+    }
+}
+
+#[test]
+fn fat_inspect_mcu_concise_literal_only_report_keeps_constants_separate_from_accesses() {
+    let dir = tempdir().unwrap();
+    let file = dir.path().join("literal-only.bin");
+    std::fs::write(&file, build_profile_register_blob(false)).unwrap();
+    let report: Value = serde_json::from_str(&inspect_output(&file, true, false)).unwrap();
+    assert!(report["register_annotations"]["accesses"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+    assert_eq!(
+        report["register_annotations"]["address_references"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    let text = inspect_output(&file, false, true);
+    assert!(text.contains("Hardware"), "{text}");
+    assert!(text.contains("Address constants"), "{text}");
+    assert!(text.contains("0xE000E010"), "{text}");
+    assert!(text.contains("SysTick.CTRL"), "{text}");
+    assert!(!text.contains("Hardware registers accessed"), "{text}");
+    assert!(!text.contains("Evidence notes & limits"), "{text}");
+}
+
+#[test]
+fn fat_inspect_mcu_overview_keeps_entry_and_accesses_while_details_expand_sites() {
+    let dir = tempdir().unwrap();
+    let file = dir.path().join("anonymous.bin");
+    std::fs::write(&file, build_profile_register_blob(true)).unwrap();
+    let overview = inspect_output(&file, false, false);
+    let details = inspect_output(&file, false, true);
+    for text in [&overview, &details] {
+        for value in [
+            "anonymous.bin",
+            "NXP LPC134x",
+            "0x1FFF0104",
+            "0xE000E010",
+            "SysTick.CTRL",
+        ] {
+            assert!(text.contains(value), "missing {value}: {text}");
+        }
+    }
+    // The overview has an aligned entry; the raw vector and instruction site
+    // are available in the expanded reference view.
+    assert!(!overview.contains("0x1FFF0105"), "{overview}");
+    assert!(!overview.contains("0x1FFF0106"), "{overview}");
+    assert!(details.contains("0x1FFF0105"), "{details}");
+    assert!(details.contains("0x1FFF0106"), "{details}");
+    assert!(overview.lines().count() <= 35, "{overview}");
+    assert!(
+        details.lines().count() > overview.lines().count(),
+        "{details}"
+    );
+    let json: Value = serde_json::from_str(&inspect_output(&file, true, false)).unwrap();
+    let json_details: Value = serde_json::from_str(&inspect_output(&file, true, true)).unwrap();
+    assert_eq!(json, json_details);
+}
+
+#[test]
+fn fat_inspect_mcu_overview_groups_large_vector_tables() {
+    let dir = tempdir().unwrap();
+    let file = dir.path().join("vectors.bin");
+    std::fs::write(&file, build_labeled_vector_table_blob()).unwrap();
+    let overview = inspect_output(&file, false, false);
+    let details = inspect_output(&file, false, true);
+    assert!(overview.contains("150"), "{overview}");
+    assert!(overview.contains("0x08000400"), "{overview}");
+    assert!(
+        overview.lines().count() <= 40,
+        "unbounded overview: {overview}"
+    );
+    assert!(
+        details.contains("IRQ 149"),
+        "last populated IRQ missing: {details}"
     );
 }
