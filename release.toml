@@ -1,0 +1,11 @@
+# One FAT version across the workspace; distribution happens through GitHub.
+shared-version = true
+dependent-version = "upgrade"
+consolidate-commits = true
+publish = false
+push = false
+tag = false
+tag-name = "v{{version}}"
+tag-prefix = ""
+pre-release-commit-message = "chore(release): prepare FAT {{version}}"
+

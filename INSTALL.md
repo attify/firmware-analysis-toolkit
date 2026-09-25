@@ -2,6 +2,32 @@
 
 The minimal quick start (clone, build, install) lives in the [README](README.md). This page is the full installation reference: installer options, external tools, and optional components.
 
+## Release downloads
+
+Choose a bundle for your operating system and CPU from [FAT Releases](https://github.com/attify/firmware-analysis-toolkit/releases/latest).
+Binary bundles contain `bin/fat`, the matching `share/fat` runtime data, and dependency license notices.
+Verify the archive against `SHA256SUMS`, extract it, and keep the `bin` and `share` directories together:
+
+```bash
+# Substitute the version and target from the release's asset list.
+tar -xzf fat-VERSION-TARGET.tar.gz
+cd fat-VERSION-TARGET
+./bin/fat --version
+./bin/fat data verify
+./bin/fat doctor
+export PATH="$PWD/bin:$PATH"
+```
+
+For a Cargo-installed executable, download the same version's `fat-data-VERSION.zip` and run `fat data install --archive ./fat-data-VERSION.zip`.
+The source installer below installs both the executable and its runtime data.
+
+## Upgrading from FAT 1.x
+
+FAT 2 is a Rust CLI with a new installation and project workflow.
+Install it in a separate directory, run `fat doctor`, and create a project with `fat new ./firmware.bin`.
+Use the `fat` commands in the [quick start](README.md#quick-start); the FAT 1.x `setup.sh`, `fat.py`, and `fat.config` instructions apply to the older release.
+Keep existing FAT 1.x workspaces until you have recreated the projects you need in FAT 2.
+
 ## Installer options
 
 The source installer requires Rust 1.90+, Python 3, and a C compiler. The default extraction profile also needs Binwalk's native build dependencies; use `--install-system-deps` to install the supported host packages.

@@ -12,6 +12,16 @@ categories.workspace = true
 description = "FAT — command-line firmware analysis toolkit"
 publish = false
 
+# Only the CLI owns the product tag and non-Cargo version fields.
+[package.metadata.release]
+tag = true
+pre-release-replacements = [
+    { file = "../../share/fat/manifest.json", search = '"data_version": "[^"]+"', replace = '"data_version": "{{version}}"', exactly = 1, prerelease = true },
+    { file = "../../share/fat/manifest.json", search = '"compatible_fat": "[^"]+"', replace = '"compatible_fat": "={{version}}"', exactly = 1, prerelease = true },
+    { file = "../../CITATION.cff", search = '(?m)^version: "[^"]+"$', replace = 'version: "{{version}}"', exactly = 1, prerelease = true },
+    { file = "../../README.md", search = 'git clone --branch v[^ ]+ --depth 1', replace = 'git clone --branch v{{version}} --depth 1', exactly = 1 },
+]
+
 [dependencies]
 clap = { version = "4", features = ["derive", "color"] }
 fat_analyze = { version = "=2.0.0-alpha.1", path = "../fat_analyze", package = "fat-toolkit-analyze" }
@@ -492,4 +502,3 @@ path = "../../tests/integration/test_taint_cross_state_profile_cli.rs"
 
 [lints]
 workspace = true
-

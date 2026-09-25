@@ -9,6 +9,14 @@ Keep dependency upgrades separate from edition changes.
 `rustfmt.toml` retains the existing formatting style so edition changes do not reformat unrelated code.
 Use `tests/support/subprocess.rs` for tests that need a custom environment or working directory; configure the child command instead of mutating the test process.
 
+## Releases
+
+Follow [RELEASING.md](RELEASING.md) for versioning, validation, packaging, and publication.
+Use one `vMAJOR.MINOR.PATCH` product tag and one shared workspace version.
+Keep runtime-data and citation versions synchronized through `cargo-release` replacements.
+Release notes describe user-facing changes; the first regular release introduces the product and its migration path.
+Use existing release tools and local validation; publishing is an explicit maintainer action.
+
 ## MCU analysis and terminal reports
 
 **Raw MCU identification** (`fat_analyze::mcu`): Structural vector candidates, family evidence, and code mapping are independent.

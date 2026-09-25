@@ -67,6 +67,9 @@ Two asks. Don't upload vendor firmware images, extracted filesystems, or anythin
 
 Keep them focused and reference the issue they close (`Closes #NN`). Match the style of the code around you, and add or update tests when behavior changes.
 If it changes user-facing behavior, add a line under `Unreleased` in `CHANGELOG.md`.
+Use Conventional Commit PR titles: `feat:` for compatible additions, `fix:` for fixes, and `!` for breaking changes, such as `feat(cli)!: rename an option`.
+These feed release-note drafts; maintainers review the version and user-facing wording before publication.
+See [RELEASING.md](RELEASING.md) for the release workflow.
 If it changes the workspace layout, a key abstraction, or the CLI surface, update `AGENTS.md` — it's the shared instruction file for coding agents, and `CLAUDE.md` is just a one-line import of it.
 
 If you're planning something large, open an issue first so we can talk it through before you spend the time on it.
