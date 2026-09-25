@@ -1,3 +1,6 @@
+#[path = "../support/subprocess.rs"]
+mod test_subprocess;
+
 use fat_bootloader::bootplan::BootExecutionResult;
 use fat_bootloader::{materialize_workspace, prepare_launch, stop_tmux_session};
 use fat_core::bootloader::{BootEnvVariable, BootValueSource, BootloaderSnapshot};
@@ -5,7 +8,6 @@ use std::ops::Deref;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::{Mutex, OnceLock};
 use tempfile::{tempdir, TempDir};
 
 fn write_file(path: &std::path::Path, bytes: &[u8]) {
@@ -54,11 +56,6 @@ impl Drop for BootloaderProject {
             );
         }
     }
-}
-
-fn env_lock() -> &'static Mutex<()> {
-    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(()))
 }
 
 fn prepared_bootloader_project() -> BootloaderProject {
@@ -677,8 +674,19 @@ fn bootloader_emulate_loads_dtb_artifact_when_present() {
 
 #[test]
 fn bootloader_emulate_resolves_profile_qemu_binary_from_path() {
-    let _guard = env_lock().lock().expect("env lock");
-    let project = prepared_true_mode_bootloader_project();
+    let Some(mut command) =
+        test_subprocess::isolated_test("bootloader_emulate_resolves_profile_qemu_binary_from_path")
+    else {
+        let project = prepared_true_mode_bootloader_project();
+        let launch = prepare_launch(&project).expect("prepare launch");
+        let path = std::env::var_os("PATH").expect("fixture path");
+        let expected = std::env::split_paths(&path)
+            .next()
+            .expect("fixture directory")
+            .join("qemu-system-arm");
+        assert_eq!(launch.qemu_binary, expected.display().to_string());
+        return;
+    };
     let fake_bin_dir = tempdir().expect("fake bin dir");
     let fake_qemu = fake_bin_dir.path().join("qemu-system-arm");
     std::fs::write(&fake_qemu, b"#!/bin/sh\nexit 0\n").expect("write fake qemu");
@@ -687,26 +695,11 @@ fn bootloader_emulate_resolves_profile_qemu_binary_from_path() {
         .permissions();
     perms.set_mode(0o755);
     std::fs::set_permissions(&fake_qemu, perms).expect("chmod");
-
-    let old_path = std::env::var_os("PATH");
-    let mut new_path = fake_bin_dir.path().as_os_str().to_os_string();
-    if let Some(old) = &old_path {
-        new_path.push(":");
-        new_path.push(old);
-    }
-
-    unsafe {
-        std::env::set_var("PATH", &new_path);
-    }
-
-    let launch = prepare_launch(&project).expect("prepare launch");
-
-    match old_path {
-        Some(value) => unsafe { std::env::set_var("PATH", value) },
-        None => unsafe { std::env::remove_var("PATH") },
-    }
-
-    assert_eq!(launch.qemu_binary, fake_qemu.display().to_string());
+    let old_path = std::env::var_os("PATH").unwrap_or_default();
+    let paths =
+        std::iter::once(fake_bin_dir.path().to_path_buf()).chain(std::env::split_paths(&old_path));
+    command.env("PATH", std::env::join_paths(paths).expect("fixture PATH"));
+    test_subprocess::assert_success(&mut command);
 }
 
 #[test]

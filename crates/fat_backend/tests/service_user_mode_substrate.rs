@@ -1,3 +1,6 @@
+#[path = "../../../tests/support/subprocess.rs"]
+mod test_subprocess;
+
 use std::fs;
 use std::path::PathBuf;
 
@@ -7,6 +10,13 @@ use fat_core::rehosting_recipe::RecipeFilesystemTransform;
 
 #[test]
 fn service_user_mode_launch_times_out_and_is_classified() {
+    if let Some(mut command) =
+        test_subprocess::isolated_test("service_user_mode_launch_times_out_and_is_classified")
+    {
+        command.env("FAT_SERVICE_USER_MODE_TIMEOUT_SECS", "1");
+        test_subprocess::assert_success(&mut command);
+        return;
+    }
     let tempdir = make_temp_dir("service-user-timeout");
     let input_root = tempdir.path().join("input-root");
     let source_root = tempdir.path().join("source-root");
@@ -29,12 +39,9 @@ fn service_user_mode_launch_times_out_and_is_classified() {
         ))
         .expect("prepared");
 
-    let previous = std::env::var_os("FAT_SERVICE_USER_MODE_TIMEOUT_SECS");
-    std::env::set_var("FAT_SERVICE_USER_MODE_TIMEOUT_SECS", "1");
     let diagnostic = manager
         .launch(&prepared)
         .expect_err("launch should time out");
-    restore_env("FAT_SERVICE_USER_MODE_TIMEOUT_SECS", previous);
 
     assert_eq!(diagnostic.phase, DiagnosticPhase::Launch);
     assert_eq!(diagnostic.class, DiagnosticClass::LaunchFailed);
@@ -129,13 +136,5 @@ fn make_executable(path: PathBuf, contents: &str) {
         let mut permissions = fs::metadata(&path).expect("metadata").permissions();
         permissions.set_mode(0o755);
         fs::set_permissions(&path, permissions).expect("permissions");
-    }
-}
-
-fn restore_env(key: &str, value: Option<std::ffi::OsString>) {
-    if let Some(value) = value {
-        std::env::set_var(key, value);
-    } else {
-        std::env::remove_var(key);
     }
 }

@@ -1,0 +1,2 @@
+# Keep repository-wide formatting separate from the language edition migration.
+style_edition = "2021"
