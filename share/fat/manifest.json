@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "data_version": "2.0.0-alpha.1",
-  "compatible_fat": ">=2.0.0-alpha.1,<2.1.0",
+  "data_version": "2.0.0",
+  "compatible_fat": "=2.0.0",
   "files": [
     {
       "path": "LICENSE",

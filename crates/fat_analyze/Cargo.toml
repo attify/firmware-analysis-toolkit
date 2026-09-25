@@ -17,9 +17,9 @@ name = "fat_analyze"
 path = "src/lib.rs"
 
 [dependencies]
-fat-core = { version = "=2.0.0-alpha.1", path = "../fat_core", package = "fat-toolkit-core" }
-fat-family = { version = "=2.0.0-alpha.1", path = "../fat_family", package = "fat-toolkit-family" }
-fat-plugin-api = { version = "=2.0.0-alpha.1", path = "../fat_plugin_api", package = "fat-toolkit-plugin-api" }
+fat-core = { version = "=2.0.0", path = "../fat_core", package = "fat-toolkit-core" }
+fat-family = { version = "=2.0.0", path = "../fat_family", package = "fat-toolkit-family" }
+fat-plugin-api = { version = "=2.0.0", path = "../fat_plugin_api", package = "fat-toolkit-plugin-api" }
 anyhow = "1"
 aho-corasick = "1"
 regex = "1"

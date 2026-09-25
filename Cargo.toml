@@ -17,7 +17,7 @@ members = [
 resolver = "3"
 
 [workspace.package]
-version = "2.0.0-alpha.1"
+version = "2.0.0"
 edition = "2024"
 rust-version = "1.90"
 license = "FSL-1.1-ALv2"
@@ -36,3 +36,7 @@ result_large_err = "allow"
 type_complexity = "allow"
 # Nested guards remain valid style; Rust 2024 need not rewrite them as let chains.
 collapsible_if = "allow"
+
+[profile.dist]
+inherits = "release"
+lto = "thin"

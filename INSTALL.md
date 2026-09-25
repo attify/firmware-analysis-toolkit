@@ -2,6 +2,49 @@
 
 The minimal quick start (clone, build, install) lives in the [README](README.md). This page is the full installation reference: installer options, external tools, and optional components.
 
+## Release downloads
+
+Choose a bundle for your operating system and CPU from [FAT Releases](https://github.com/attify/firmware-analysis-toolkit/releases/latest).
+Binary bundles contain `fat` (`fat.exe` on Windows), the matching `share/fat` runtime data, and dependency license notices.
+Choose the target matching your machine:
+
+| System | CPU | Target |
+| --- | --- | --- |
+| macOS | Apple Silicon | `aarch64-apple-darwin` |
+| macOS | Intel | `x86_64-apple-darwin` |
+| Linux | x86-64 | `x86_64-unknown-linux-gnu` |
+| Linux | ARM64 | `aarch64-unknown-linux-gnu` |
+| Windows | x86-64 | `x86_64-pc-windows-msvc` |
+
+Linux x86-64 requires glibc 2.35 or newer; Linux ARM64 requires glibc 2.39 or newer.
+The archives are tested on Ubuntu 22.04 (x86-64), Ubuntu 24.04 (ARM64), and Fedora 42 (both CPUs).
+
+Verify the archive against its adjacent `.sha256` file, extract it, and keep the executable and `share` directory together:
+
+```bash
+# Substitute the target from the release's asset list.
+shasum -a 256 -c firmware-analysis-toolkit-TARGET.tar.gz.sha256
+tar -xzf firmware-analysis-toolkit-TARGET.tar.gz
+cd firmware-analysis-toolkit-TARGET
+./fat --version
+./fat data verify
+./fat doctor
+export PATH="$PWD:$PATH"
+```
+
+On Windows, use `Get-FileHash` to compare the ZIP's SHA-256 with its `.sha256` file, extract with `Expand-Archive`, and run `.\fat.exe data verify` from the extracted directory.
+The Windows binary supports native analysis commands; workflows using Linux filesystem semantics or external Unix tools should run under WSL with the Linux build.
+
+For a Cargo-installed executable, download the same version's `fat-data-VERSION.zip` and run `fat data install --archive ./fat-data-VERSION.zip`.
+The source installer below installs both the executable and its runtime data.
+
+## Upgrading from FAT 1.x
+
+FAT 2 is a Rust CLI with a new installation and project workflow.
+Install it in a separate directory, run `fat doctor`, and create a project with `fat new ./firmware.bin`.
+Use the `fat` commands in the [quick start](README.md#quick-start); the FAT 1.x `setup.sh`, `fat.py`, and `fat.config` instructions apply to the older release.
+Keep existing FAT 1.x workspaces until you have recreated the projects you need in FAT 2.
+
 ## Installer options
 
 The source installer requires Rust 1.90+, Python 3, and a C compiler. The default extraction profile also needs Binwalk's native build dependencies; use `--install-system-deps` to install the supported host packages.

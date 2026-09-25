@@ -120,7 +120,9 @@ fn status(explicit_root: Option<PathBuf>, json: bool) -> DynResult<()> {
             let data_root = resolver
                 .roots()
                 .iter()
-                .find(|root| root.origin == resolved.origin)
+                .find(|root| {
+                    root.origin == resolved.origin && resolved.root.starts_with(&root.path)
+                })
                 .map(|root| root.path.display().to_string())
                 .unwrap_or_else(|| resolved.root.display().to_string());
             DataStatus {
@@ -318,7 +320,7 @@ fn verify(explicit_root: Option<PathBuf>, json: bool) -> DynResult<()> {
     let data_root = resolver
         .roots()
         .iter()
-        .find(|root| root.origin == resolved.origin)
+        .find(|root| root.origin == resolved.origin && resolved.root.starts_with(&root.path))
         .map(|root| root.path.display().to_string())
         .unwrap_or_else(|| resolved.root.display().to_string());
     let result = InstallResult {

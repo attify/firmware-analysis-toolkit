@@ -94,11 +94,16 @@ impl DataResolver {
             .and_then(Path::parent)
             .and_then(Path::parent)
             .map(|prefix| prefix.join("share").join("fat"));
+        let portable_root = executable
+            .as_deref()
+            .and_then(Path::parent)
+            .map(|directory| directory.join("share").join("fat"));
         let development_root = development_root.filter(|root| is_development_checkout(root));
 
         let candidates = [
             explicit_root.map(|path| (path, DataRootOrigin::Explicit)),
             environment_root.map(|path| (path, DataRootOrigin::Environment)),
+            portable_root.map(|path| (path, DataRootOrigin::ExecutableRelative)),
             executable_root.map(|path| (path, DataRootOrigin::ExecutableRelative)),
             user_root.map(|path| (path, DataRootOrigin::User)),
             development_root.map(|path| (path, DataRootOrigin::Development)),

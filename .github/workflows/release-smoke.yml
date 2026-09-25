@@ -1,0 +1,57 @@
+name: Test release archives
+on:
+  workflow_call:
+    inputs:
+      plan:
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            target: aarch64-apple-darwin
+            extension: tar.gz
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            extension: tar.gz
+          - runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            extension: tar.gz
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            extension: tar.gz
+          - runner: windows-2022
+            target: x86_64-pc-windows-msvc
+            extension: zip
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: artifacts-*
+          merge-multiple: true
+          path: artifacts
+      - name: Run packaged executable and verify bundled data
+        shell: bash
+        env:
+          VERSION: ${{ fromJson(inputs.plan).releases[0].app_version }}
+          ARCHIVE: artifacts/firmware-analysis-toolkit-${{ matrix.target }}.${{ matrix.extension }}
+        run: python3 scripts/smoke-release.py "$ARCHIVE" --version "$VERSION"
+      - name: Verify Linux archive on Fedora
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          VERSION: ${{ fromJson(inputs.plan).releases[0].app_version }}
+          ARCHIVE: artifacts/firmware-analysis-toolkit-${{ matrix.target }}.${{ matrix.extension }}
+        run: |
+          docker run --rm -v "$PWD:/source:ro" -w /source \
+            -e VERSION -e ARCHIVE fedora:42 \
+            sh -c 'dnf -y install python3 && python3 scripts/smoke-release.py "$ARCHIVE" --version "$VERSION"'

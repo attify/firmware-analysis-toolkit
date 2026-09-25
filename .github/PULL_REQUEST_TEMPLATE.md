@@ -17,7 +17,7 @@ Closes #
 - [ ] `cargo test --workspace`
 - [ ] `cargo test -p firmware-analysis-toolkit --test test_kernel_profile_consistency`
 - [ ] `python3 scripts/build-runtime-data-bundle.py --check`
-- [ ] `uv run mkdocs build --strict` (only if `docs/` changed)
+- [ ] Documentation links and rendered Markdown checked (if documentation changed)
 
 ## Notes
 

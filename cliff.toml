@@ -1,0 +1,29 @@
+[changelog]
+header = "# Changelog\n\n"
+body = """
+{% if version %}## [{{ version | trim_start_matches(pat="v") }}]{% else %}## [Unreleased]{% endif %}
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group }}
+{% for commit in commits %}
+- {% if commit.breaking %}**Breaking:** {% endif %}{{ commit.message | split(pat="\n") | first | trim }}
+{% endfor %}
+{% endfor %}
+"""
+trim = true
+
+[git]
+conventional_commits = true
+filter_unconventional = false
+protect_breaking_commits = true
+commit_parsers = [
+    { message = "^Merge ", skip = true },
+    { message = "^feat", group = "Added" },
+    { message = "^fix", group = "Fixed" },
+    { message = "^perf", group = "Performance" },
+    { message = "^refactor", group = "Changed" },
+    { message = "^(docs|test|ci|style|chore)(\\(|:)", skip = true },
+    { message = ".*", group = "Changed" },
+]
+# Exclude historical QEMU download tags and use FAT SemVer tags only.
+tag_pattern = "^v[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$"
+sort_commits = "oldest"
