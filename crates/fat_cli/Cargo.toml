@@ -24,18 +24,18 @@ pre-release-replacements = [
 
 [dependencies]
 clap = { version = "4", features = ["derive", "color"] }
-fat_analyze = { version = "=2.0.0-alpha.1", path = "../fat_analyze", package = "fat-toolkit-analyze" }
-fat_backend = { version = "=2.0.0-alpha.1", path = "../fat_backend", package = "fat-toolkit-backend" }
-fat_bootloader = { version = "=2.0.0-alpha.1", path = "../fat_bootloader", package = "fat-toolkit-bootloader" }
-fat_family = { version = "=2.0.0-alpha.1", path = "../fat_family", package = "fat-toolkit-family" }
-fat_extract = { version = "=2.0.0-alpha.1", path = "../fat_extract", package = "fat-toolkit-extract" }
-fat_package = { version = "=2.0.0-alpha.1", path = "../fat_package", package = "fat-toolkit-package" }
-fat_core = { version = "=2.0.0-alpha.1", path = "../fat_core", package = "fat-toolkit-core" }
-fat_emulate = { version = "=2.0.0-alpha.1", path = "../fat_emulate", package = "fat-toolkit-emulate" }
-fat_taint = { version = "=2.0.0-alpha.1", path = "../fat_taint", package = "fat-toolkit-taint" }
-fat_plugin_api = { version = "=2.0.0-alpha.1", path = "../fat_plugin_api", package = "fat-toolkit-plugin-api" }
-fat_plugin_host = { version = "=2.0.0-alpha.1", path = "../fat_plugin_host", package = "fat-toolkit-plugin-host" }
-fat_query = { version = "=2.0.0-alpha.1", path = "../fat_query", package = "fat-toolkit-query" }
+fat_analyze = { version = "=2.0.0", path = "../fat_analyze", package = "fat-toolkit-analyze" }
+fat_backend = { version = "=2.0.0", path = "../fat_backend", package = "fat-toolkit-backend" }
+fat_bootloader = { version = "=2.0.0", path = "../fat_bootloader", package = "fat-toolkit-bootloader" }
+fat_family = { version = "=2.0.0", path = "../fat_family", package = "fat-toolkit-family" }
+fat_extract = { version = "=2.0.0", path = "../fat_extract", package = "fat-toolkit-extract" }
+fat_package = { version = "=2.0.0", path = "../fat_package", package = "fat-toolkit-package" }
+fat_core = { version = "=2.0.0", path = "../fat_core", package = "fat-toolkit-core" }
+fat_emulate = { version = "=2.0.0", path = "../fat_emulate", package = "fat-toolkit-emulate" }
+fat_taint = { version = "=2.0.0", path = "../fat_taint", package = "fat-toolkit-taint" }
+fat_plugin_api = { version = "=2.0.0", path = "../fat_plugin_api", package = "fat-toolkit-plugin-api" }
+fat_plugin_host = { version = "=2.0.0", path = "../fat_plugin_host", package = "fat-toolkit-plugin-host" }
+fat_query = { version = "=2.0.0", path = "../fat_query", package = "fat-toolkit-query" }
 r2pipe = "0.8.0"
 regex = "1"
 serde = { version = "1", features = ["derive"] }
@@ -58,7 +58,7 @@ serde_yaml = "0.9"
 # Integration tests under tests/integration/ are registered as fat_cli test
 # targets, so the fixture loaders they use are enabled here rather than in
 # fat_query's default features.
-fat_query = { version = "=2.0.0-alpha.1", path = "../fat_query", package = "fat-toolkit-query", features = ["test-fixtures"] }
+fat_query = { version = "=2.0.0", path = "../fat_query", package = "fat-toolkit-query", features = ["test-fixtures"] }
 flate2 = "1"
 tempfile = "3"
 zip = "2"

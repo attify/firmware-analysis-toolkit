@@ -61,12 +61,17 @@ The first regular release uses the curated introduction in [release-notes/v2.0.0
 It describes the product, highlights, installation, and migration from FAT 1.x.
 It is the baseline for subsequent release notes.
 
+```bash
+release_notes=release-notes/v2.0.0.md
+```
+
 For later releases, generate a draft from the previous published FAT tag:
 
 ```bash
 previous_tag=v2.0.0
 mkdir -p .tmp
-git cliff "$previous_tag..HEAD" --tag "$release_tag" --output .tmp/release-notes.md
+release_notes=.tmp/release-notes.md
+git cliff "$previous_tag..HEAD" --tag "$release_tag" --output "$release_notes"
 ```
 
 `cliff.toml` groups features, fixes, performance improvements, and other changes.
@@ -74,6 +79,7 @@ It recognizes FAT SemVer tags and excludes historical QEMU tags.
 Nonconventional commits remain visible for review; routine documentation, test, CI, style, and release-maintenance commits are omitted unless breaking.
 Review the generated notes, preserve useful entries already under `Unreleased`, and add the finalized release section to `CHANGELOG.md` while retaining its history.
 Keep the notes focused on user-visible changes, including migration instructions for breaking changes.
+Include an absolute link to the tagged installation guide so the notes can also serve as the binary bundle's README.
 Commit the version, notes, and changelog through a release PR.
 
 ## Validate and build
@@ -87,11 +93,13 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked -- --test-threads=1
 cargo test -p firmware-analysis-toolkit --locked --test test_kernel_profile_consistency
+python3 -m unittest discover -s tests/release -p 'test_*.py'
 python3 scripts/build-runtime-data-bundle.py --check
 cargo build --release --locked -p firmware-analysis-toolkit
 ```
 
 Build and smoke-test each binary on its intended operating system and CPU.
+Stop preparation if any validation command fails.
 Use the Rust target triple in asset names, such as `aarch64-apple-darwin`.
 Publish only the targets built and tested for this release; the tagged source is also available for source installation.
 Check native shared-library dependencies with `otool -L` on macOS or `ldd` on Linux and document any non-system requirements.
@@ -111,7 +119,8 @@ cp "$release_binary" "$release_stage/bin/fat"
 python3 scripts/build-runtime-data-bundle.py \
   --output "$release_assets/fat-data-$release_version.zip"
 unzip -q "$release_assets/fat-data-$release_version.zip" -d "$release_stage/share/fat"
-cp LICENSE LICENSING.md THIRD_PARTY_NOTICES.md INSTALL.md "$release_stage/"
+cp LICENSE LICENSING.md THIRD_PARTY_NOTICES.md "$release_stage/"
+cp "$release_notes" "$release_stage/README.md"
 cp -R LICENSES "$release_stage/"
 ./scripts/generate-third-party-licenses.sh "$release_stage/third-party-licenses.json"
 "$release_stage/bin/fat" --version
@@ -123,7 +132,7 @@ tar -czf "$release_assets/$release_bundle.tar.gz" \
 Use a fresh staging directory for each build.
 Extract the finished archive into a fresh temporary directory, run `bin/fat --version` and `bin/fat data verify` there, and exercise identification with a synthetic input.
 `data verify --json` must report the bundled runtime-data path and the expected version.
-Repeat the installed smoke test on a clean machine for each platform listed in the release.
+Run the installed smoke test on each platform listed in the release.
 Include the generated third-party license report in every binary archive.
 
 Collect all tested archives in the same release-assets directory, then generate checksums:
@@ -147,7 +156,7 @@ cargo release tag -p firmware-analysis-toolkit --execute --no-confirm
 git push origin "refs/tags/$release_tag"
 ```
 
-For the first release, set `release_notes=release-notes/v2.0.0.md`; use the reviewed notes file for later releases.
+Use the reviewed `release_notes` file selected above.
 Create a draft and upload the tested artifacts:
 
 ```bash
@@ -167,4 +176,3 @@ gh release edit "$release_tag" --draft=false --prerelease=false --latest
 
 For a preview, use `--draft=false --prerelease=true --latest=false` instead.
 Verify the published release, download and check its assets, and check the README badge after its cache refreshes.
-

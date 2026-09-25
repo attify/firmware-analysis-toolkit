@@ -41,12 +41,8 @@ cargo test -p firmware-analysis-toolkit --test test_kernel_profile_consistency
 python3 scripts/build-runtime-data-bundle.py --check
 ```
 
-If you touched anything under `docs/`, build the documentation too. It's strict, so a broken link fails the build:
-
-```bash
-uv sync --extra docs
-uv run mkdocs build --strict
-```
+Documentation is published as Markdown in this repository.
+When changing it, check relative links and preview tables and code blocks in GitHub's rendered view.
 
 The clippy policy lives in the root `Cargo.toml` under `[workspace.lints]`. A handful of design-level lints are allowed there; everything else has to pass.
 

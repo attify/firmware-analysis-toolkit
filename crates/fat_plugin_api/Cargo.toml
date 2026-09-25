@@ -17,7 +17,7 @@ name = "fat_plugin_api"
 path = "src/lib.rs"
 
 [dependencies]
-fat_core = { version = "=2.0.0-alpha.1", path = "../fat_core", package = "fat-toolkit-core" }
+fat_core = { version = "=2.0.0", path = "../fat_core", package = "fat-toolkit-core" }
 serde = { version = "1", features = ["derive"] }
 
 [lints]

@@ -142,7 +142,13 @@ fn managed_root_resolves_resources_from_the_active_version() {
     std::fs::create_dir_all(&resource).unwrap();
     std::fs::write(
         active_root.join("manifest.json"),
-        r#"{"schema_version":1,"data_version":"0.1.4","compatible_fat":">=2.0.0-alpha.1,<2.1.0","files":[]}"#,
+        serde_json::json!({
+            "schema_version": 1,
+            "data_version": "0.1.4",
+            "compatible_fat": format!("={}", env!("CARGO_PKG_VERSION")),
+            "files": [],
+        })
+        .to_string(),
     )
     .unwrap();
     std::fs::write(
@@ -168,7 +174,13 @@ fn managed_active_version_outranks_stale_direct_files() {
     let active = resource(&active_root, "profiles/rehosting");
     std::fs::write(
         active_root.join("manifest.json"),
-        r#"{"schema_version":1,"data_version":"0.1.4","compatible_fat":">=2.0.0-alpha.1,<2.1.0","files":[]}"#,
+        serde_json::json!({
+            "schema_version": 1,
+            "data_version": "0.1.4",
+            "compatible_fat": format!("={}", env!("CARGO_PKG_VERSION")),
+            "files": [],
+        })
+        .to_string(),
     )
     .unwrap();
     std::fs::write(

@@ -17,7 +17,7 @@ fn write_data_tree(root: &Path, version: &str, profile: &[u8]) {
     let manifest = json!({
         "schema_version": 1,
         "data_version": version,
-        "compatible_fat": ">=2.0.0-alpha.1,<2.1.0",
+        "compatible_fat": format!("={}", env!("CARGO_PKG_VERSION")),
         "files": [{
             "path": "profiles/rehosting/acme/router.yaml",
             "sha256": digest(profile),
@@ -444,7 +444,7 @@ fn data_install_accepts_a_safe_zip_archive() {
     let manifest = json!({
         "schema_version": 1,
         "data_version": "2.0.0-alpha.3",
-        "compatible_fat": ">=2.0.0-alpha.1,<2.1.0",
+        "compatible_fat": format!("={}", env!("CARGO_PKG_VERSION")),
         "files": [{
             "path": "profiles/rehosting/acme/router.yaml",
             "sha256": digest(profile),
@@ -686,7 +686,7 @@ fn write_zip_with_manifest(
     let manifest = json!({
         "schema_version": 1,
         "data_version": version,
-        "compatible_fat": ">=2.0.0-alpha.1,<2.1.0",
+        "compatible_fat": format!("={}", env!("CARGO_PKG_VERSION")),
         "files": files,
     });
     let archive_file = fs::File::create(archive).unwrap();
