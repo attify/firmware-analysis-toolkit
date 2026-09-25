@@ -4,6 +4,7 @@
 
 ### Added
 
+- An Arch Linux and Omarchy installation guide with tested prerequisites, optional tools, and extraction verification steps.
 - `identify` and `inspect mcu` show compact overviews by default.
   `--details` expands related findings into grouped reference tables; JSON stays unchanged.
 - `inspect mcu` reports bounded Thumb code and function candidates, referenced strings, recovered initialization descriptors, and decoded MMIO accesses.
@@ -12,6 +13,7 @@
 
 ### Fixed
 
+- Automatic native dependency installation recognizes Omarchy and other distributions declaring `ID_LIKE=arch`, while preserving explicitly supported distribution recipes.
 - Identification and MCU tables have outer borders and row separators.
   MCU hardware tables label register addresses and operations explicitly.
 - Report tables use a shared renderer; Unicode borders and section dividers remain visible when ANSI colors are disabled.

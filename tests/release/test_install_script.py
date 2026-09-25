@@ -168,6 +168,158 @@ class InstallScriptTests(unittest.TestCase):
             check=False,
         )
 
+    def configure_linux_release(self, contents: str | None) -> None:
+        release = self.root / "fixture os-release"
+        if contents is not None:
+            release.write_text(contents, encoding="utf-8")
+        self.environment["FAT_INSTALL_OS_RELEASE"] = str(release)
+        write_executable(self.fake_bin / "uname", "#!/bin/sh\nprintf 'Linux\\n'\n")
+        # Never delegate to a real package manager, even if dispatch is wrong.
+        write_executable(
+            self.fake_bin / "sudo",
+            f"""
+            #!{sys.executable}
+            import os
+            from pathlib import Path
+            import sys
+
+            with Path(os.environ["FAKE_INSTALL_LOG"]).open("a", encoding="utf-8") as output:
+                output.write("sudo " + " ".join(sys.argv[1:]) + "\\n")
+            """,
+        )
+
+    def test_omarchy_uses_arch_dependencies_for_both_profiles(self) -> None:
+        self.configure_linux_release("ID=omarchy\nID_LIKE=arch\n")
+        for profile in ("core", "extraction"):
+            with self.subTest(profile=profile):
+                self.log.unlink(missing_ok=True)
+                result = self.run_installer(
+                    "--profile", profile, "--install-system-deps",
+                    "--prefix", str(self.root / profile), "--jobs", "1",
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                packages = [
+                    line for line in self.log.read_text().splitlines()
+                    if line.startswith("sudo ")
+                ]
+                expected = ["sudo pacman -S --needed base-devel"]
+                if profile == "extraction":
+                    expected.append(
+                        "sudo pacman -S --needed fontconfig freetype2 "
+                        "e2fsprogs p7zip squashfs-tools"
+                    )
+                self.assertEqual(packages, expected)
+
+    def test_arch_family_matches_only_complete_whitespace_separated_tokens(self) -> None:
+        for family, supported in (
+            ("arch other", True),
+            ("other arch another", True),
+            ("other\tarch\n", True),
+            ("archlinux", False),
+            ("notarch", False),
+            ("arch-other", False),
+            ("debian ubuntu", False),
+        ):
+            with self.subTest(family=family):
+                self.configure_linux_release(f'ID=derivative\nID_LIKE="{family}"\n')
+                result = self.run_installer("--install-system-deps", "--dry-run")
+                if supported:
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    self.assertIn("sudo pacman -S --needed base-devel", result.stdout)
+                    self.assertIn("e2fsprogs p7zip squashfs-tools", result.stdout)
+                else:
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("unsupported OS", result.stderr)
+                self.assertFalse(self.log.exists(), "dry-run must not execute commands")
+
+    def test_supported_ids_take_precedence_over_arch_family(self) -> None:
+        recipes = {
+            "fedora": [
+                "sudo dnf install -y gcc make",
+                "sudo dnf install -y gcc-c++ pkgconf-pkg-config fontconfig-devel "
+                "freetype-devel e2fsprogs 7zip lz4 zstd squashfs-tools util-linux-script",
+            ],
+            "rhel": [
+                "sudo dnf install -y gcc make",
+                "sudo dnf install -y gcc-c++ pkgconf-pkg-config fontconfig-devel "
+                "freetype-devel e2fsprogs p7zip p7zip-plugins squashfs-tools util-linux-script",
+            ],
+            "ubuntu": [
+                "sudo apt-get update",
+                "sudo apt-get install -y build-essential",
+                "sudo apt-get update",
+                "sudo apt-get install -y g++ pkg-config libfontconfig1-dev "
+                "libfreetype6-dev e2fsprogs p7zip-full squashfs-tools",
+            ],
+            "arch": [
+                "sudo pacman -S --needed base-devel",
+                "sudo pacman -S --needed fontconfig freetype2 e2fsprogs p7zip squashfs-tools",
+            ],
+        }
+        recipes["centos"] = recipes["rhel"]
+        recipes["debian"] = recipes["ubuntu"]
+        recipes["manjaro"] = recipes["arch"]
+        for distro, expected in recipes.items():
+            with self.subTest(distro=distro):
+                self.configure_linux_release(f"ID={distro}\nID_LIKE=arch\n")
+                self.log.unlink(missing_ok=True)
+                result = self.run_installer(
+                    "--install-system-deps", "--prefix", str(self.root / distro),
+                    "--jobs", "1",
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                packages = [
+                    line for line in self.log.read_text().splitlines()
+                    if line.startswith("sudo ")
+                ]
+                self.assertEqual(packages, expected)
+
+    def test_missing_release_fields_do_not_use_inherited_environment(self) -> None:
+        self.environment.update({"ID": "arch", "ID_LIKE": "arch"})
+        for contents in ("", "ID=unknown\n", "ID_LIKE=notarch\n"):
+            with self.subTest(contents=contents):
+                self.configure_linux_release(contents)
+                result = self.run_installer("--install-system-deps")
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("rerun without --install-system-deps", result.stderr)
+                self.assertNotIn("unbound variable", result.stderr)
+                self.assertFalse(self.log.exists(), "unsupported OS must fail before mutation")
+
+        self.configure_linux_release("ID_LIKE=arch\n")
+        result = self.run_installer("--install-system-deps", "--dry-run")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("sudo pacman -S --needed base-devel", result.stdout)
+
+    def test_missing_release_file_fails_before_installing(self) -> None:
+        self.environment.update({"ID": "arch", "ID_LIKE": "arch"})
+        self.configure_linux_release(None)
+        result = self.run_installer("--install-system-deps")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("unsupported OS", result.stderr)
+        self.assertIn("rerun without --install-system-deps", result.stderr)
+        self.assertNotIn("unbound variable", result.stderr)
+        self.assertFalse(self.log.exists())
+
+    def test_omarchy_system_deps_dry_run_does_not_mutate(self) -> None:
+        self.configure_linux_release("ID=omarchy\nID_LIKE=arch\n")
+        self.environment["TMPDIR"] = str(self.root)
+        scratch = self.root / "fat-install.DRY_RUN"
+        scratch.mkdir()
+        marker = scratch / "keep.txt"
+        marker.write_text("existing data")
+        for profile in ("core", "extraction"):
+            with self.subTest(profile=profile):
+                prefix = self.root / profile
+                result = self.run_installer(
+                    "--profile", profile, "--install-system-deps",
+                    "--prefix", str(prefix), "--dry-run",
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("sudo pacman -S --needed base-devel", result.stdout)
+                self.assertEqual(marker.read_text(), "existing data")
+                self.assertFalse(prefix.exists())
+                self.assertFalse(self.log.exists())
+
     def test_extraction_profile_installs_pinned_binwalk_and_is_idempotent(self) -> None:
         prefix = self.root / "extraction-prefix"
         first = self.run_installer(

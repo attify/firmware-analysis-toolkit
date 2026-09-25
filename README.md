@@ -31,13 +31,15 @@ cargo install --path crates/fat_cli --locked
 fat doctor
 ```
 
-One-Shot Installer:
+On Arch Linux or Omarchy, start with the [Arch installation steps](INSTALL.md#arch-linux-and-omarchy) for prerequisite packages and optional tools.
+
+One-Shot Installer for supported hosts:
 
 ```bash
 ./scripts/install.sh --install-system-deps
 ```
 
-Refer [INSTALL.md](INSTALL.md) for more customization in the installation process.
+See [INSTALL.md](INSTALL.md) for installer options and optional tools.
 
 ## Quick Command Ref. 
 
