@@ -1,5 +1,8 @@
 # FAT — Firmware Analysis Toolkit
 
+[![FAT release](https://img.shields.io/github/v/release/attify/firmware-analysis-toolkit?filter=v*&sort=semver&label=FAT)](https://github.com/attify/firmware-analysis-toolkit/releases/latest)
+[Download the latest release](https://github.com/attify/firmware-analysis-toolkit/releases/latest) · [Changelog](CHANGELOG.md) · [Installation](INSTALL.md)
+
 **Firmware Analysis Toolkit** is a security research toolkit for investigating firmware security for IoT, Physical AI, Mobile Devices & Robotics. It is primarily built for the ["Offensive IoT Exploitation"](https://www.attify.com/training) training conducted by [Attify](https://attify.com).
 
 It has been built based on actual hands-on field experience of what really matters when it comes to real firmware security investigations that matter.
@@ -21,13 +24,15 @@ Some of the features include classifying unknown firmware, extracts filesystems,
 
 ## Quick start
 
-Clone the repository, build with Rust 1.90 or newer, and install:
+Download a binary bundle from [Releases](https://github.com/attify/firmware-analysis-toolkit/releases/latest), or build the latest regular release with Rust 1.90 or newer:
 
 ```bash
-git clone https://github.com/attify/firmware-analysis-toolkit.git
+git clone --branch v2.0.0 --depth 1 https://github.com/attify/firmware-analysis-toolkit.git
 cd firmware-analysis-toolkit
 cargo build --release --locked
 cargo install --path crates/fat_cli --locked
+python3 scripts/build-runtime-data-bundle.py --output ./dist/fat-data.zip
+fat data install --archive ./dist/fat-data.zip
 fat doctor
 ```
 
@@ -151,6 +156,7 @@ fat verify --help
 | [docs/architecture.md](docs/architecture.md) | Workspace crates and extension points |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Build and test workflow |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Setup, PR checklist, and contribution guide |
+| [RELEASING.md](RELEASING.md) | Version naming and the maintainer release workflow |
 
 ## Citation
 

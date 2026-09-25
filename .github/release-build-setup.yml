@@ -1,0 +1,14 @@
+- name: Use bundled compression libraries
+  shell: bash
+  run: |
+    echo 'LZMA_API_STATIC=1' >> "$GITHUB_ENV"
+    echo 'BZIP2_NO_PKG_CONFIG=1' >> "$GITHUB_ENV"
+- name: Install license-report tool
+  uses: taiki-e/install-action@v2
+  with:
+    tool: cargo-about@0.8.2
+- name: Stage runtime data and dependency licenses
+  shell: bash
+  run: |
+    python3 scripts/prepare-release-resources.py
+    bash scripts/generate-third-party-licenses.sh target/release-resources/third-party-licenses.json

@@ -66,8 +66,7 @@ fn fat_cli_shows_version() {
     assert!(output.status.success());
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("fat"));
-    assert!(stdout.contains("2.0.0-alpha.1"));
+    assert_eq!(stdout.trim(), concat!("fat ", env!("CARGO_PKG_VERSION")));
 }
 
 #[test]

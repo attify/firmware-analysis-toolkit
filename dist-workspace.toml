@@ -1,0 +1,43 @@
+[workspace]
+members = ["cargo:."]
+
+[dist]
+cargo-dist-version = "0.33.0"
+packages = ["firmware-analysis-toolkit"]
+ci = ["github"]
+dispatch-releases = true
+pr-run-mode = "upload"
+create-release = false
+installers = []
+targets = [
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+]
+unix-archive = ".tar.gz"
+windows-archive = ".zip"
+auto-includes = false
+include = [
+    "target/release-resources/share",
+    "target/release-resources/README.md",
+    "target/release-resources/third-party-licenses.json",
+    "LICENSE",
+    "LICENSING.md",
+    "THIRD_PARTY_NOTICES.md",
+    "LICENSES",
+]
+github-build-setup = "../release-build-setup.yml"
+global-artifacts-jobs = ["./release-smoke"]
+
+[dist.github-custom-runners]
+aarch64-apple-darwin = "macos-14"
+x86_64-apple-darwin = "macos-15-intel"
+x86_64-unknown-linux-gnu = "ubuntu-22.04"
+aarch64-unknown-linux-gnu = "ubuntu-24.04-arm"
+x86_64-pc-windows-msvc = "windows-2022"
+
+[[dist.extra-artifacts]]
+artifacts = ["dist/fat-data-2.0.0.zip", "dist/fat-data-2.0.0.zip.sha256"]
+build = ["python3", "scripts/prepare-release-resources.py"]

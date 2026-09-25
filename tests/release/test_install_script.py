@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -14,6 +15,11 @@ import unittest
 
 REPO = Path(__file__).resolve().parents[2]
 INSTALLER = REPO / "scripts" / "install.sh"
+FAT_VERSION = re.search(
+    r'^version\s*=\s*"([^"]+)"',
+    (REPO / "Cargo.toml").read_text(encoding="utf-8"),
+    re.MULTILINE,
+).group(1)
 
 
 def write_executable(path: Path, text: str) -> None:
@@ -72,7 +78,7 @@ class InstallScriptTests(unittest.TestCase):
                 output.write("fat " + " ".join(args) + "\\n")
 
             if args == ["--version"]:
-                print("fat 2.0.0-alpha.1")
+                print("fat {FAT_VERSION}")
                 raise SystemExit(0)
             if len(args) >= 2 and args[:2] == ["data", "install"]:
                 data_dir = Path(args[args.index("--data-dir") + 1])

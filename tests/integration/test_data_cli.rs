@@ -17,7 +17,7 @@ fn write_data_tree(root: &Path, version: &str, profile: &[u8]) {
     let manifest = json!({
         "schema_version": 1,
         "data_version": version,
-        "compatible_fat": ">=2.0.0-alpha.1,<2.1.0",
+        "compatible_fat": format!("={}", env!("CARGO_PKG_VERSION")),
         "files": [{
             "path": "profiles/rehosting/acme/router.yaml",
             "sha256": digest(profile),
@@ -147,6 +147,7 @@ fn data_status_resolves_and_verifies_executable_relative_share_data() {
     assert_eq!(status["status"], "ready");
     assert_eq!(status["data_version"], "2.0.0-alpha.7");
     assert_eq!(status["origin"], "executable-relative");
+    assert_eq!(status["data_root"], data_root.display().to_string());
     assert_eq!(status["active_path"], data_root.display().to_string());
 
     let human = Command::new(&installed_fat)
@@ -444,7 +445,7 @@ fn data_install_accepts_a_safe_zip_archive() {
     let manifest = json!({
         "schema_version": 1,
         "data_version": "2.0.0-alpha.3",
-        "compatible_fat": ">=2.0.0-alpha.1,<2.1.0",
+        "compatible_fat": format!("={}", env!("CARGO_PKG_VERSION")),
         "files": [{
             "path": "profiles/rehosting/acme/router.yaml",
             "sha256": digest(profile),
@@ -686,7 +687,7 @@ fn write_zip_with_manifest(
     let manifest = json!({
         "schema_version": 1,
         "data_version": version,
-        "compatible_fat": ">=2.0.0-alpha.1,<2.1.0",
+        "compatible_fat": format!("={}", env!("CARGO_PKG_VERSION")),
         "files": files,
     });
     let archive_file = fs::File::create(archive).unwrap();
