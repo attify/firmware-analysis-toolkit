@@ -17,6 +17,14 @@ Keep runtime-data and citation versions synchronized through `cargo-release` rep
 Release notes describe user-facing changes; the first regular release introduces the product and its migration path.
 Use `cargo-dist` for native GitHub platform builds and archive smoke tests; publishing is an explicit maintainer workflow dispatch.
 
+## Firmware extraction
+
+`fat_extract::pipeline` owns the recursive container and embedded-region queue and per-artifact outcomes.
+`output::OutputTree` owns staged publication, path validation, shared output limits, and deferred symlinks.
+SquashFS header, inode, codec, and cached metadata readers remain separate; new formats reuse the output contract.
+Carved images and directory names alone do not establish rootfs recovery; unresolved branches must leave fallback available.
+Explicit native selection must not invoke external filesystem fallback.
+
 ## MCU analysis and terminal reports
 
 **Raw MCU identification** (`fat_analyze::mcu`): Structural vector candidates, family evidence, and code mapping are independent.

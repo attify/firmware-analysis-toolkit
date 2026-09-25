@@ -4,10 +4,13 @@
 
 ### Added
 
+- Native recursive ZIP, TAR, and gzip extraction with SquashFS 2/3/4 decoding, including both byte orders and legacy LZMA block layouts.
+- Extraction manifests include per-artifact lineage, decoder outcomes, limits, and recovery status.
 - An Arch Linux and Omarchy installation guide with tested prerequisites, optional tools, and extraction verification steps.
 
 ### Fixed
 
+- Carved images and empty output directories no longer stop rootfs recovery attempts.
 - Healthy bootloader tmux sessions are reused on tmux versions that sanitize control characters in display formats.
 - Binwalk runs that exit without scanning any files are retried up to twice within the original timeout, preserving failed attempts and reporting a failure if scanning never starts.
 - Automatic native dependency installation recognizes Omarchy and other distributions declaring `ID_LIKE=arch`, while preserving explicitly supported distribution recipes.

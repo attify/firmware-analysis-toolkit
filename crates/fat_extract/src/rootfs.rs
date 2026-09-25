@@ -59,7 +59,15 @@ fn is_unblob_filesystem_tree(path: &Path) -> bool {
     if unblob_filesystem_kind(&name.to_ascii_lowercase()).is_none() {
         return false;
     }
-    fs::read_dir(path).is_ok_and(|mut entries| entries.next().is_some())
+    has_tree_content(path)
+}
+
+fn has_tree_content(path: &Path) -> bool {
+    walkdir::WalkDir::new(path)
+        .follow_links(false)
+        .into_iter()
+        .filter_map(Result::ok)
+        .any(|entry| entry.file_type().is_file() || entry.file_type().is_symlink())
 }
 
 pub fn find_rootfs(dir: impl AsRef<Path>) -> Option<PathBuf> {
@@ -137,7 +145,7 @@ pub fn find_all_trees(dir: impl AsRef<Path>) -> Vec<(String, PathBuf)> {
                 .any(|pat| dir_name == *pat || dir_name.starts_with(&format!("{pat}-")))
                 || is_unblob_filesystem_tree(&path);
 
-            if is_known_fs {
+            if is_known_fs && has_tree_content(&path) {
                 let label = infer_tree_label(&path, &dir_name);
                 // Don't add duplicates (same canonical path)
                 if !trees.iter().any(|(_, p)| p == &path) {
@@ -180,13 +188,20 @@ fn is_rootfs_dir(path: &Path) -> bool {
         .and_then(|name| name.to_str())
         .map(|name| ROOTFS_CANDIDATES.contains(&name.to_ascii_lowercase().as_str()))
         .unwrap_or(false);
-    name_matched || looks_like_rootfs_tree(path) || is_unblob_filesystem_tree(path)
+    looks_like_rootfs_tree(path)
+        || ((name_matched || is_unblob_filesystem_tree(path))
+            && has_file_entry(&path.join("bin/busybox")))
+}
+
+fn has_file_entry(path: &Path) -> bool {
+    fs::symlink_metadata(path)
+        .is_ok_and(|metadata| metadata.is_file() || metadata.file_type().is_symlink())
 }
 
 fn looks_like_rootfs_tree(path: &Path) -> bool {
-    let has_boot_anchor = path.join("sbin").join("init").is_file()
-        || path.join("etc").join("inittab").is_file()
-        || path.join("init").is_file();
+    let has_boot_anchor = has_file_entry(&path.join("sbin/init"))
+        || has_file_entry(&path.join("etc/inittab"))
+        || has_file_entry(&path.join("init"));
     if !has_boot_anchor {
         return false;
     }
@@ -212,6 +227,9 @@ fn infer_tree_label(path: &Path, dir_name: &str) -> String {
     // If it looks like a rootfs, label it "rootfs"
     if looks_like_rootfs_tree(path) {
         return "rootfs".to_string();
+    }
+    if dir_name == "rootfs" && !is_rootfs_dir(path) {
+        return "filesystem".to_string();
     }
 
     // If dir_name is a known FS pattern, use it directly

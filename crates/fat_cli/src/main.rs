@@ -3,7 +3,6 @@ use fat_analyze::bootloader::{
     analyze_firmware_path as analyze_bootloader_firmware, analyze_text as analyze_bootloader_text,
     merge_snapshots as merge_bootloader_snapshots,
 };
-use fat_analyze::firmware_formats::scan as scan_firmware_formats;
 use fat_bootloader::{
     assist_boot, discover_boot_artifacts, evaluate_true_boot_chain, launch_in_tmux,
     materialize_workspace, prepare_launch, stop_all_tmux_sessions, stop_tmux_session,
@@ -25,9 +24,7 @@ use fat_extract::extractors::{
     StrategyContext, Sufficiency,
 };
 use fat_extract::manifest::{EngineReport, EngineStatus, ExtractionManifest};
-use fat_extract::native::{extract_gzip_member, GzipExtractionOptions};
 use fat_extract::rootfs::{find_all_trees, find_rootfs};
-use fat_extract::{cramfs::extract_cramfs, cramfs::CramfsLimits};
 use sha2::{Digest, Sha256};
 use std::error::Error;
 use std::ffi::OsString;
@@ -3675,7 +3672,10 @@ fn cmd_extract(
 
             engine_reports.extend(outcomes.iter().map(engine_report_for));
 
-            if !attempted_tools.is_empty() && !tool_succeeded {
+            if !attempted_tools.is_empty()
+                && !tool_succeeded
+                && !outcomes.iter().any(|outcome| outcome.evidence.has_rootfs())
+            {
                 let native_dir = extraction_root.join("native");
                 if file_count(&native_dir) == 0 {
                     remove_existing_path_if_present(&extraction_root)?;
@@ -3727,12 +3727,15 @@ fn cmd_extract(
         } else {
             crate::style::PipelineProgress::none()
         };
-        let mut manifest = recover_rootfs_if_needed(
-            build_extraction_manifest(&extraction_root)?,
-            &extraction_root,
-            &firmware_path,
-            &project_dir.join("work").join("rootfs-fallback.log"),
-        )?;
+        let mut manifest = build_extraction_manifest(&extraction_root)?;
+        if !matches!(&extractor_selection, ExtractorSelection::Only(engine) if engine == "native") {
+            manifest = recover_rootfs_if_needed(
+                manifest,
+                &extraction_root,
+                &firmware_path,
+                &project_dir.join("work").join("rootfs-fallback.log"),
+            )?;
+        }
         drop(recover_spinner);
         manifest.engine = attribute_engine(&manifest, &extraction_root, &engine_reports);
         if let Some(engine) = manifest.engine.clone() {
@@ -3749,6 +3752,20 @@ fn cmd_extract(
                 .unwrap_or_default();
         }
         manifest.engine_reports = engine_reports;
+        manifest.artifacts = engine_outcomes
+            .iter()
+            .flat_map(|outcome| outcome.artifacts.clone())
+            .collect();
+        manifest.recovery_status = Some(
+            if engine_outcomes.iter().any(|outcome| outcome.incomplete) {
+                "partial"
+            } else if manifest.rootfs_path.is_some() {
+                "rootfs_recovered"
+            } else {
+                "files_only"
+            }
+            .to_string(),
+        );
         if manifest.file_count == 0 {
             let mut message =
                 "firmware extraction produced no recoverable files; refusing an empty success state"
@@ -3932,6 +3949,8 @@ fn extract_json(
             "engine": manifest.engine,
             "engine_version": manifest.engine_version,
             "engine_args": manifest.engine_args,
+            "recovery_status": manifest.recovery_status,
+            "artifacts": manifest.artifacts,
             "engines": engines,
             "rootfs": rootfs,
             "kernel_paths": kernel_paths,
@@ -4004,40 +4023,80 @@ impl Extractor for NativeExtractor {
         _on_tick: &mut dyn FnMut(Duration),
     ) -> ExtractionOutcome {
         let started = Instant::now();
-        let outcome = try_extract_native_regions(
+        let result = fat_extract::pipeline::extract(
             &request.firmware,
-            request
-                .work_dir
-                .parent()
-                .unwrap_or(&request.work_dir)
-                .to_path_buf()
-                .as_path(),
-            &request.log_path,
+            &request.work_dir,
+            fat_extract::pipeline::PipelineOptions::default(),
         );
-        let duration = started.elapsed();
-
-        match outcome {
-            Ok(NativeExtractionOutcome::RootfsRecovered) => {
-                ExtractionOutcome::new(self.id(), ExtractStatus::Succeeded)
-                    .with_detail("recovered a rootfs")
-                    .with_evidence(CarvedEvidence::survey(&request.work_dir))
-                    .with_duration(duration)
+        let mut outcome = match result {
+            Ok(report) => {
+                let evidence = CarvedEvidence::survey(&request.work_dir);
+                let recovered = report
+                    .artifacts
+                    .iter()
+                    .filter(|artifact| {
+                        artifact.status == fat_extract::pipeline::ArtifactStatus::Recovered
+                    })
+                    .count();
+                let status = if recovered > 0 {
+                    ExtractStatus::Succeeded
+                } else if report.artifacts.is_empty() {
+                    ExtractStatus::Skipped
+                } else {
+                    ExtractStatus::Failed
+                };
+                let mut outcome = ExtractionOutcome::new(self.id(), status)
+                    .with_detail(format!(
+                        "{recovered} artifacts recovered; rootfs {}",
+                        if evidence.has_rootfs() {
+                            "recovered"
+                        } else {
+                            "not recovered"
+                        }
+                    ))
+                    .with_evidence(evidence);
+                if report.artifacts.is_empty() {
+                    outcome.detail = Some("no supported regions in the image".into());
+                }
+                if report.truncated {
+                    outcome.detail = Some(format!(
+                        "{recovered} artifacts recovered; artifact budget reached"
+                    ));
+                }
+                outcome.incomplete = report.has_unresolved();
+                outcome.artifacts = report.artifacts;
+                outcome
             }
-            Ok(NativeExtractionOutcome::EvidenceOnly) => {
-                ExtractionOutcome::new(self.id(), ExtractStatus::Succeeded)
-                    .with_detail("carved boot evidence without a rootfs")
-                    .with_evidence(CarvedEvidence::survey(&request.work_dir))
-                    .with_duration(duration)
-            }
-            Ok(NativeExtractionOutcome::NoSupportedRegion) => {
-                ExtractionOutcome::new(self.id(), ExtractStatus::Skipped)
-                    .with_detail("no supported regions in the image")
-                    .with_duration(duration)
-            }
-            Err(err) => ExtractionOutcome::new(self.id(), ExtractStatus::Failed)
-                .with_detail(err.to_string())
-                .with_duration(duration),
+            Err(error) => ExtractionOutcome::new(self.id(), ExtractStatus::Failed)
+                .with_detail(error.to_string()),
+        };
+        outcome.duration = started.elapsed();
+        if let Some(parent) = request.log_path.parent() {
+            let _ = fs::create_dir_all(parent);
         }
+        let mut log = format!("{}\n", outcome.detail.as_deref().unwrap_or_default());
+        for artifact in &outcome.artifacts {
+            let _ = writeln!(
+                log,
+                "{} @ 0x{:X}: {:?}{}",
+                artifact.format,
+                artifact.offset,
+                artifact.status,
+                artifact
+                    .detail
+                    .as_ref()
+                    .map(|detail| format!(" ({detail})"))
+                    .unwrap_or_default()
+            );
+        }
+        let _ = fs::write(&request.log_path, log);
+        if let Ok(bytes) = serde_json::to_vec_pretty(&outcome.artifacts) {
+            let _ = fs::write(
+                request.log_path.with_file_name("native-artifacts.json"),
+                bytes,
+            );
+        }
+        outcome
     }
 }
 
@@ -4262,6 +4321,9 @@ const SUMMARY_LIST_CAP: usize = 10;
 /// rootfs is and how large, where each kernel landed, and what the tree looks
 /// like at its top level — instead of bare counts that need a follow-up `ls`.
 fn print_extraction_artifacts(manifest: &ExtractionManifest, project_dir: &Path) {
+    if let Some(status) = &manifest.recovery_status {
+        println!("recovery: {status}");
+    }
     match manifest.rootfs_path.as_deref() {
         Some(rootfs) => println!("rootfs: {}", describe_tree(rootfs, project_dir)),
         None => println!("rootfs: not found"),
@@ -4333,6 +4395,10 @@ fn extract_panel_lines(
     }
     if let Some(note) = refresh_note {
         lines.push(format!("{} {}", palette.dot_warn(), palette.muted(note)));
+    }
+
+    if let Some(status) = &manifest.recovery_status {
+        lines.push(palette.kv("recovery", status));
     }
 
     if !manifest.engine_reports.is_empty() {
@@ -4608,175 +4674,6 @@ fn engine_for_extraction_path(
             .map(|report| report.engine.clone())
             .find(|engine| engine.starts_with("container:")),
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum NativeExtractionOutcome {
-    RootfsRecovered,
-    EvidenceOnly,
-    NoSupportedRegion,
-}
-
-fn try_extract_native_regions(
-    firmware_path: &Path,
-    extraction_root: &Path,
-    log_path: &Path,
-) -> DynResult<NativeExtractionOutcome> {
-    let bytes = fs::read(firmware_path)?;
-    let scan = scan_firmware_formats(&bytes);
-    let native_root = extraction_root.join("native");
-    let mut log = String::new();
-    let mut recovered_rootfs = false;
-    let mut recovered_evidence = false;
-
-    for (index, header) in scan
-        .filesystem_headers
-        .iter()
-        .filter(|header| header.format == "cramfs")
-        .enumerate()
-    {
-        let Some(image_size) = header.image_size else {
-            continue;
-        };
-        let Some(start) = usize::try_from(header.offset).ok() else {
-            log.push_str("skipped CramFS region whose offset does not fit this platform\n");
-            continue;
-        };
-        let Some(end_u64) = header.offset.checked_add(image_size) else {
-            log.push_str("skipped CramFS region whose span overflows\n");
-            continue;
-        };
-        let Some(end) = usize::try_from(end_u64).ok() else {
-            log.push_str("skipped CramFS region whose end does not fit this platform\n");
-            continue;
-        };
-        let Some(image) = bytes.get(start..end) else {
-            log.push_str("skipped CramFS region whose declared span exceeds the firmware\n");
-            continue;
-        };
-        let directory_name = if index == 0 {
-            "cramfs-root".to_string()
-        } else {
-            format!("cramfs-root-{}", index + 1)
-        };
-        let destination = native_root.join(directory_name);
-        match extract_cramfs(
-            image,
-            &destination,
-            CramfsLimits {
-                max_inodes: 262_144,
-                max_depth: 128,
-                max_file_size: 16 * 1024 * 1024,
-                max_total_output: 512 * 1024 * 1024,
-            },
-        ) {
-            Ok(result) => {
-                recovered_rootfs = true;
-                recovered_evidence = true;
-                writeln!(
-                    log,
-                    "extracted CramFS @ 0x{:08X} to {} ({} files, {} directories, {} symlinks, {} special entries skipped)",
-                    header.offset,
-                    result.root.display(),
-                    result.files,
-                    result.directories,
-                    result.symlinks,
-                    result.skipped_special,
-                )?;
-            }
-            Err(error) => {
-                writeln!(
-                    log,
-                    "native CramFS extraction failed @ 0x{:08X}: {error}",
-                    header.offset
-                )?;
-            }
-        }
-    }
-
-    for (index, member) in scan
-        .compression_members
-        .iter()
-        .filter(|member| member.format == "gzip")
-        .filter(|member| {
-            !scan.filesystem_headers.iter().any(|header| {
-                header.image_size.is_some_and(|size| {
-                    member.offset > header.offset
-                        && member.offset < header.offset.saturating_add(size)
-                })
-            })
-        })
-        .enumerate()
-    {
-        let Some(compressed_size) = member.compressed_size else {
-            continue;
-        };
-        let Some(start) = usize::try_from(member.offset).ok() else {
-            log.push_str("skipped gzip member whose offset does not fit this platform\n");
-            continue;
-        };
-        let Some(end_u64) = member.offset.checked_add(compressed_size) else {
-            log.push_str("skipped gzip member whose span overflows\n");
-            continue;
-        };
-        let Some(end) = usize::try_from(end_u64).ok() else {
-            log.push_str("skipped gzip member whose end does not fit this platform\n");
-            continue;
-        };
-        let Some(member_bytes) = bytes.get(start..end) else {
-            log.push_str("skipped gzip member whose span exceeds the firmware\n");
-            continue;
-        };
-        let directory_name = if index == 0 {
-            "kernel".to_string()
-        } else {
-            format!("kernel-{}", index + 1)
-        };
-        let destination = native_root.join(directory_name);
-        match extract_gzip_member(
-            member_bytes,
-            &destination,
-            GzipExtractionOptions {
-                original_name: member.original_name.clone(),
-                max_output: 128 * 1024 * 1024,
-            },
-        ) {
-            Ok(result) => {
-                recovered_evidence = true;
-                writeln!(
-                    log,
-                    "extracted gzip @ 0x{:08X} to {} ({} bytes)",
-                    member.offset,
-                    result.decompressed_path.display(),
-                    result.decompressed_size
-                )?;
-            }
-            Err(error) => {
-                writeln!(
-                    log,
-                    "native gzip extraction failed @ 0x{:08X}: {error}",
-                    member.offset
-                )?;
-            }
-        }
-    }
-
-    if !recovered_evidence {
-        remove_existing_path_if_present(&native_root)?;
-        log.push_str("no supported native region was materialized\n");
-    }
-    if let Some(parent) = log_path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(log_path, log)?;
-
-    Ok(if recovered_rootfs {
-        NativeExtractionOutcome::RootfsRecovered
-    } else if recovered_evidence {
-        NativeExtractionOutcome::EvidenceOnly
-    } else {
-        NativeExtractionOutcome::NoSupportedRegion
-    })
 }
 
 fn fail_extract_with_error<T>(

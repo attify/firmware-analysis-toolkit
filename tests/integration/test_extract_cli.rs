@@ -421,14 +421,12 @@ exit 0
 }
 
 #[test]
-fn fat_extract_all_runs_engines_that_auto_would_suppress() {
+fn fat_extract_auto_and_all_continue_past_carved_images() {
     let workspace = tempdir().expect("workspace");
     let fake_bin_dir = tempdir().expect("fake bin dir");
     let firmware_path = workspace.path().join("suppressed.bin");
     fs::write(&firmware_path, b"firmware-bytes").expect("firmware file");
 
-    // binwalk carves an image it cannot unpack, which in auto mode suppresses
-    // the engine that would have recovered the rootfs.
     write_script(
         &fake_bin_dir.path().join("binwalk"),
         r#"#!/bin/sh
@@ -470,11 +468,10 @@ exit 0
     assert!(auto.status.success(), "{auto:?}");
     let auto_stdout = String::from_utf8_lossy(&auto.stdout);
     assert!(
-        auto_stdout
-            .contains("- unblob: skipped (binwalk already carved candidate filesystem images)"),
+        auto_stdout.contains("- unblob: succeeded (carved a rootfs)"),
         "{auto_stdout}"
     );
-    assert!(auto_stdout.contains("rootfs: not found"), "{auto_stdout}");
+    assert!(!auto_stdout.contains("rootfs: not found"), "{auto_stdout}");
 
     let project_dir = only_project_dir(workspace.path());
     let forced = Command::new(env!("CARGO_BIN_EXE_fat"))
@@ -708,8 +705,6 @@ fn fat_extract_reports_the_winning_engine_and_skip_reasons() {
     let firmware_path = workspace.path().join("provenance.bin");
     fs::write(&firmware_path, b"firmware-bytes-with-no-native-regions").expect("firmware file");
 
-    // binwalk carves a filesystem image, which suppresses unblob — the exact
-    // decision that used to be visible only in work/unblob.log.
     write_script(
         &fake_bin_dir.path().join("binwalk"),
         r#"#!/bin/sh
@@ -720,7 +715,7 @@ exit 0
     );
     write_script(
         &fake_bin_dir.path().join("unblob"),
-        "#!/bin/sh\necho 'unblob should have been skipped' >&2\nexit 9\n",
+        "#!/bin/sh\necho 'fallback attempted' >&2\nexit 9\n",
     );
     write_script(
         &fake_bin_dir.path().join("unsquashfs"),
@@ -754,7 +749,7 @@ exit 0
         "{stdout}"
     );
     assert!(
-        stdout.contains("- unblob: skipped (binwalk already carved candidate filesystem images)"),
+        stdout.contains("- unblob: failed (see work/unblob.log)"),
         "{stdout}"
     );
 
@@ -779,8 +774,7 @@ exit 0
     );
     assert!(rerun_stdout.contains("engine: binwalk"), "{rerun_stdout}");
     assert!(
-        rerun_stdout
-            .contains("- unblob: skipped (binwalk already carved candidate filesystem images)"),
+        rerun_stdout.contains("- unblob: failed (see work/unblob.log)"),
         "{rerun_stdout}"
     );
 }
@@ -1375,7 +1369,7 @@ exit 0
 }
 
 #[test]
-fn fat_extract_skips_unblob_when_binwalk_already_carved_filesystem_images() {
+fn fat_extract_continues_when_only_filesystem_images_were_carved() {
     let projects_dir = tempdir().expect("projects dir");
     let firmware_dir = tempdir().expect("firmware dir");
     let fake_bin_dir = tempdir().expect("fake bin dir");
@@ -1393,7 +1387,7 @@ exit 0
     write_script(
         &fake_bin_dir.path().join("unblob"),
         r#"#!/bin/sh
-echo "unblob should have been skipped" >&2
+echo "fallback attempted" >&2
 exit 9
 "#,
     );
@@ -1436,11 +1430,11 @@ exit 0
 
     let unblob_log =
         fs::read_to_string(project_dir.join("work").join("unblob.log")).expect("unblob log");
-    assert!(unblob_log.contains("skipped unblob"), "{unblob_log}");
+    assert!(unblob_log.contains("exit=9"), "{unblob_log}");
 }
 
 #[test]
-fn fat_extract_skips_unblob_when_binwalk_already_carved_boot_artifacts() {
+fn fat_extract_continues_when_only_boot_artifacts_were_carved() {
     let projects_dir = tempdir().expect("projects dir");
     let firmware_dir = tempdir().expect("firmware dir");
     let fake_bin_dir = tempdir().expect("fake bin dir");
@@ -1459,7 +1453,7 @@ exit 0
     write_script(
         &fake_bin_dir.path().join("unblob"),
         r#"#!/bin/sh
-echo "unblob should have been skipped for carved boot artifacts" >&2
+echo "fallback attempted" >&2
 exit 9
 "#,
     );
@@ -1501,10 +1495,7 @@ exit 9
 
     let unblob_log =
         fs::read_to_string(project_dir.join("work").join("unblob.log")).expect("unblob log");
-    assert!(
-        unblob_log.contains("skipped unblob because binwalk already carved boot artifacts"),
-        "{unblob_log}"
-    );
+    assert!(unblob_log.contains("exit=9"), "{unblob_log}");
 }
 
 #[test]
@@ -2690,4 +2681,76 @@ exit 0
         serde_json::from_str::<serde_json::Value>(&text_stdout).is_err(),
         "text mode must stay human output: {text_stdout}"
     );
+}
+
+#[test]
+fn native_extract_recurses_through_containers_and_records_lineage() {
+    let workspace = tempdir().unwrap();
+    let image = firmware_formats::cramfs_fixture(firmware_formats::FixtureEndian::Big).image;
+    let mut archive = tar::Builder::new(Vec::new());
+    let mut header = tar::Header::new_gnu();
+    header.set_size(image.len() as u64);
+    header.set_mode(0o644);
+    header.set_cksum();
+    archive
+        .append_data(&mut header, "payload", image.as_slice())
+        .unwrap();
+    let input = workspace.path().join("nested.bin");
+    fs::write(&input, archive.into_inner().unwrap()).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_fat"))
+        .args([
+            "extract",
+            input.to_str().unwrap(),
+            "--extractor",
+            "native",
+            "--json",
+        ])
+        .current_dir(workspace.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["recovery_status"], "rootfs_recovered");
+    assert_eq!(json["artifacts"][0]["format"], "tar");
+    assert_eq!(json["artifacts"][1]["format"], "cramfs");
+    assert_eq!(json["artifacts"][1]["parent"], 0);
+    assert_eq!(json["engine"], "native");
+}
+
+#[test]
+fn native_selection_does_not_run_external_rootfs_fallback() {
+    let workspace = tempdir().unwrap();
+    let tools = tempdir().unwrap();
+    let marker = workspace.path().join("external-ran");
+    let mut archive = tar::Builder::new(Vec::new());
+    let mut header = tar::Header::new_gnu();
+    header.set_size(4);
+    header.set_mode(0o644);
+    header.set_cksum();
+    archive
+        .append_data(&mut header, "rootfs.squashfs", &b"data"[..])
+        .unwrap();
+    let input = workspace.path().join("native-only.tar");
+    fs::write(&input, archive.into_inner().unwrap()).unwrap();
+    let script = format!("#!/bin/sh\n/usr/bin/touch '{}'\nexit 1\n", marker.display());
+    for name in ["sasquatch", "unsquashfs"] {
+        write_script(&tools.path().join(name), &script);
+    }
+    let output = Command::new(env!("CARGO_BIN_EXE_fat"))
+        .args([
+            "extract",
+            input.to_str().unwrap(),
+            "--extractor",
+            "native",
+            "--json",
+        ])
+        .current_dir(workspace.path())
+        .env("PATH", tools.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    assert!(!marker.exists());
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["recovery_status"], "files_only");
+    assert!(json["rootfs"].is_null());
 }

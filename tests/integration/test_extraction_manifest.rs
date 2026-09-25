@@ -104,6 +104,8 @@ fn find_rootfs_discovers_nested_rootfs_directory() {
     let root = unique_temp_dir("fat-extract-rootfs");
     let nested_rootfs = root.join("firmware").join("extracted").join("rootfs");
     fs::create_dir_all(&nested_rootfs).unwrap();
+    fs::create_dir_all(nested_rootfs.join("bin")).unwrap();
+    fs::write(nested_rootfs.join("bin/busybox"), b"ELF").unwrap();
 
     let found = fat_extract::rootfs::find_rootfs(root.join("firmware"));
 
@@ -115,6 +117,8 @@ fn find_rootfs_accepts_a_rootfs_directory_as_input() {
     let root = unique_temp_dir("fat-extract-rootfs-direct");
     let rootfs = root.join("rootfs");
     fs::create_dir_all(&rootfs).unwrap();
+    fs::create_dir_all(rootfs.join("bin")).unwrap();
+    fs::write(rootfs.join("bin/busybox"), b"ELF").unwrap();
 
     let found = fat_extract::rootfs::find_rootfs(&rootfs);
 
@@ -126,6 +130,8 @@ fn find_rootfs_accepts_a_jffs2_root_directory_as_input() {
     let root = unique_temp_dir("fat-extract-jffs2-rootfs-direct");
     let rootfs = root.join("jffs2-root");
     fs::create_dir_all(&rootfs).unwrap();
+    fs::create_dir_all(rootfs.join("bin")).unwrap();
+    fs::write(rootfs.join("bin/busybox"), b"ELF").unwrap();
 
     let found = fat_extract::rootfs::find_rootfs(&rootfs);
 
@@ -141,6 +147,8 @@ fn find_rootfs_skips_symlink_cycles() {
     let nested = root.join("firmware").join("extracted");
     let nested_rootfs = nested.join("rootfs");
     fs::create_dir_all(&nested_rootfs).unwrap();
+    fs::create_dir_all(nested_rootfs.join("bin")).unwrap();
+    fs::write(nested_rootfs.join("bin/busybox"), b"ELF").unwrap();
     symlink(root.join("firmware"), nested.join("loop")).unwrap();
 
     let found = fat_extract::rootfs::find_rootfs(root.join("firmware"));
@@ -224,4 +232,25 @@ fn unique_temp_dir(prefix: &str) -> PathBuf {
     dir.push(unique);
     fs::create_dir_all(&dir).unwrap();
     dir
+}
+
+#[test]
+fn empty_named_directories_are_not_recovered_filesystems() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::create_dir(temp.path().join("squashfs-root")).unwrap();
+    assert!(fat_extract::rootfs::find_rootfs(temp.path()).is_none());
+    assert!(fat_extract::rootfs::find_all_trees(temp.path()).is_empty());
+}
+
+#[test]
+fn a_directory_name_and_readme_do_not_prove_rootfs_recovery() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("rootfs");
+    std::fs::create_dir(&root).unwrap();
+    std::fs::write(root.join("readme"), b"firmware package").unwrap();
+    assert!(fat_extract::rootfs::find_rootfs(temp.path()).is_none());
+    assert_eq!(
+        fat_extract::rootfs::find_all_trees(temp.path())[0].0,
+        "filesystem"
+    );
 }

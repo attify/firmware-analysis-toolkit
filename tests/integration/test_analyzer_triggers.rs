@@ -306,6 +306,8 @@ while [ $i -le 12 ]; do
   dd if=/dev/zero of="_many.bin.extracted/squashfs-root/opt/app$i/bin/busybox" bs=1024 count=8 2>/dev/null
   i=$((i + 1))
 done
+mkdir -p _many.bin.extracted/squashfs-root/bin
+ln -s ../opt/app1/bin/busybox _many.bin.extracted/squashfs-root/bin/busybox
 exit 0
 "#,
     );
@@ -352,7 +354,7 @@ exit 0
         "rootfs line must carry size and filesystem kind: {rootfs_line}"
     );
     assert!(
-        extract_stdout.contains("top-level: opt"),
+        extract_stdout.contains("top-level: bin opt"),
         "{extract_stdout}"
     );
 
