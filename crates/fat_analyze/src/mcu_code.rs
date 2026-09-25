@@ -548,9 +548,11 @@ fn string_reference(
         Some(("ascii", String::from_utf8(tail[..end].to_vec()).ok()?))
     } else {
         let units: Vec<u16> = tail
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .take(MAX_STRING_UNITS + 1)
-            .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
+            .map(|pair| u16::from_le_bytes(*pair))
             .collect();
         units
             .iter()

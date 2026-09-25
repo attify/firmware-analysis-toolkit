@@ -257,6 +257,44 @@ fn bootloader_emulate_restarts_stale_tmux_sessions() {
 
 #[test]
 fn bootloader_emulate_reuses_a_healthy_tmux_session() {
+    assert_healthy_tmux_session_is_reused();
+}
+
+#[test]
+fn bootloader_emulate_reuses_healthy_sessions_when_tmux_sanitizes_control_characters() {
+    if let Some(mut command) = test_subprocess::isolated_test(
+        "bootloader_emulate_reuses_healthy_sessions_when_tmux_sanitizes_control_characters",
+    ) {
+        let path = std::env::var_os("PATH").expect("PATH");
+        let tmux = std::env::split_paths(&path)
+            .map(|directory| directory.join("tmux"))
+            .find(|binary| binary.is_file())
+            .expect("tmux on PATH");
+        let shim_dir = tempdir().expect("tmux shim dir");
+        let shim = shim_dir.path().join("tmux");
+        // tmux 3.7c replaces literal control characters in display formats with
+        // underscores. Model that behavior while retaining a real tmux session
+        // so this regression also runs against older installed tmux versions.
+        write_file(
+            &shim,
+            b"#!/bin/bash\nargs=()\nfor argument in \"$@\"; do\n  args+=(\"${argument//$'\\t'/_}\")\ndone\nexec \"$FAT_TEST_REAL_TMUX\" \"${args[@]}\"\n",
+        );
+        std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o755))
+            .expect("chmod tmux shim");
+        command.env("FAT_TEST_REAL_TMUX", tmux).env(
+            "PATH",
+            std::env::join_paths(
+                std::iter::once(shim_dir.path().to_path_buf()).chain(std::env::split_paths(&path)),
+            )
+            .expect("shim PATH"),
+        );
+        test_subprocess::assert_success(&mut command);
+        return;
+    }
+    assert_healthy_tmux_session_is_reused();
+}
+
+fn assert_healthy_tmux_session_is_reused() {
     let project = prepared_bootloader_project();
     let fake_dir = tempdir().expect("fake runtime dir");
     let quoted_dir = fake_dir.path().join("quoted\"runtime");

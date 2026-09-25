@@ -263,3 +263,188 @@ fn selection_parsing_accepts_known_engines_and_rejects_the_rest() {
     );
     assert!(ExtractorSelection::parse("unblob", &known).is_err());
 }
+
+#[cfg(unix)]
+#[path = "../support/subprocess.rs"]
+mod subprocess;
+
+#[cfg(unix)]
+mod binwalk_recovery {
+    use super::*;
+    use fat_extract::extractors::ExternalExtractor;
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+
+    fn check(test: &str, mode: &str, timeout: Option<Duration>) {
+        if let Some(mut child) = subprocess::isolated_test(test) {
+            let temp = tempdir().unwrap();
+            let bin = temp.path().join("bin");
+            fs::create_dir(&bin).unwrap();
+            let script = bin.join("binwalk");
+            fs::write(
+                &script,
+                r#"#!/bin/sh
+count_file="$FAT_BINWALK_TEST_ROOT/count"
+n=0
+if [ -f "$count_file" ]; then read -r n < "$count_file"; fi
+n=$((n + 1))
+printf '%s\n' "$n" > "$count_file"
+case "$FAT_BINWALK_TEST_MODE" in
+  failed) exit 2 ;;
+  empty) printf 'Analyzed 1 file for 85 file signatures\n'; exit 0 ;;
+  timeout) sleep 3 ;;
+  once|repeated|nested)
+    if [ "$((n % 2))" -eq 0 ]; then
+      test ! -e partial.txt || exit 3
+      mkdir -p rootfs/etc
+      printf 'recovered\n' > rootfs/etc/marker
+      printf 'Analyzed 1 file for 85 file signatures\n'
+      exit 0
+    fi ;;
+esac
+printf 'incomplete\n' > partial.txt
+printf 'Analyzed 0 files for 85 file signatures (187 magic patterns) in 5.0 milliseconds\n'
+"#,
+            )
+            .unwrap();
+            fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).unwrap();
+            let paths = std::iter::once(bin)
+                .chain(std::env::split_paths(
+                    &std::env::var_os("PATH").unwrap_or_default(),
+                ))
+                .collect::<Vec<_>>();
+            child
+                .env("PATH", std::env::join_paths(paths).unwrap())
+                .env("FAT_BINWALK_TEST_ROOT", temp.path())
+                .env("FAT_BINWALK_TEST_MODE", mode);
+            subprocess::assert_success(&mut child);
+            return;
+        }
+        let root = PathBuf::from(std::env::var_os("FAT_BINWALK_TEST_ROOT").unwrap());
+        let firmware = root.join("firmware.bin");
+        fs::write(&firmware, b"fixture").unwrap();
+        let request = ExtractionRequest {
+            firmware,
+            work_dir: root.join("extractions/binwalk"),
+            log_path: if mode == "nested" {
+                root.join("extractions/binwalk/binwalk.log")
+            } else {
+                root.join("binwalk.log")
+            },
+            timeout,
+        };
+        let result = ExternalExtractor::binwalk().extract(&request, &mut |_| {});
+        let count = fs::read_to_string(root.join("count")).unwrap();
+        match mode {
+            "once" | "repeated" | "nested" => {
+                assert_eq!(count.trim(), "2", "zero scans must be retried");
+                assert_eq!(result.status, ExtractStatus::Succeeded);
+                assert_eq!(
+                    fs::read_to_string(request.work_dir.join("rootfs/etc/marker")).unwrap(),
+                    "recovered\n"
+                );
+                assert!(!request.work_dir.join("partial.txt").exists());
+                let previous = if mode == "nested" {
+                    root.join("extractions/binwalk.attempt-1")
+                } else {
+                    root.join("binwalk.attempt-1")
+                };
+                assert_eq!(
+                    fs::read_to_string(previous.join("partial.txt")).unwrap(),
+                    "incomplete\n"
+                );
+                assert!(fs::read_to_string(previous.with_extension("attempt-1.log"))
+                    .unwrap()
+                    .contains("Analyzed 0 files"));
+                assert!(result.detail.unwrap().contains("retry"));
+                if mode == "repeated" {
+                    fs::remove_dir_all(&request.work_dir).unwrap();
+                    let next = ExternalExtractor::binwalk().extract(&request, &mut |_| {});
+                    assert_eq!(next.status, ExtractStatus::Succeeded);
+                    assert!(previous.join("partial.txt").is_file());
+                    assert!(root.join("binwalk.attempt-2/partial.txt").is_file());
+                }
+            }
+            "persistent" => {
+                assert_eq!(result.status, ExtractStatus::Failed);
+                assert_eq!(count.trim(), "3", "retry budget must be bounded");
+                assert!(result.detail.unwrap().contains("analyzed zero files"));
+                assert_eq!(fs::read_dir(&request.work_dir).unwrap().count(), 0);
+                assert!(root.join("binwalk.attempt-3/partial.txt").is_file());
+            }
+            "timeout" => {
+                assert_eq!(result.status, ExtractStatus::TimedOut);
+                assert_eq!(count.trim(), "2", "retry must share the original deadline");
+                assert!(result.duration < Duration::from_secs(6));
+            }
+            "empty" => {
+                assert_eq!(result.status, ExtractStatus::Succeeded);
+                assert_eq!(count.trim(), "1", "a scan with no signatures is valid");
+            }
+            "failed" => {
+                assert_eq!(result.status, ExtractStatus::Failed);
+                assert_eq!(count.trim(), "1", "other errors must not be retried");
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn recovers_zero_scan_with_fresh_output_and_preserved_evidence() {
+        check(
+            "binwalk_recovery::recovers_zero_scan_with_fresh_output_and_preserved_evidence",
+            "once",
+            None,
+        );
+    }
+    #[test]
+    fn retries_with_log_inside_output_directory() {
+        check(
+            "binwalk_recovery::retries_with_log_inside_output_directory",
+            "nested",
+            None,
+        );
+    }
+
+    #[test]
+    fn preserves_previous_runs_when_retrying_again() {
+        check(
+            "binwalk_recovery::preserves_previous_runs_when_retrying_again",
+            "repeated",
+            None,
+        );
+    }
+
+    #[test]
+    fn fails_after_three_zero_scans() {
+        check(
+            "binwalk_recovery::fails_after_three_zero_scans",
+            "persistent",
+            None,
+        );
+    }
+    #[test]
+    fn keeps_one_deadline_across_retries() {
+        check(
+            "binwalk_recovery::keeps_one_deadline_across_retries",
+            "timeout",
+            Some(Duration::from_secs(5)),
+        );
+    }
+    #[test]
+    fn accepts_completed_scan_without_signatures() {
+        check(
+            "binwalk_recovery::accepts_completed_scan_without_signatures",
+            "empty",
+            None,
+        );
+    }
+    #[test]
+    fn does_not_retry_other_failures() {
+        check(
+            "binwalk_recovery::does_not_retry_other_failures",
+            "failed",
+            None,
+        );
+    }
+}

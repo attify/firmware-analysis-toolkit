@@ -3690,8 +3690,31 @@ fn cmd_extract(
                         timed_out.join(" and ")
                     )
                 };
+                let failure_details = attempted_tools
+                    .iter()
+                    .filter_map(|outcome| {
+                        outcome
+                            .detail
+                            .as_ref()
+                            .map(|detail| format!("{}: {detail}", outcome.extractor))
+                    })
+                    .collect::<Vec<_>>()
+                    .join("; ");
+                let failure_note = if failure_details.is_empty() {
+                    String::new()
+                } else {
+                    format!("; {failure_details}")
+                };
+                let install_note = if attempted_tools
+                    .iter()
+                    .any(|outcome| outcome.detail.as_deref() == Some("not installed"))
+                {
+                    ", install the missing tools"
+                } else {
+                    ""
+                };
                 return Err(format!(
-                "firmware extraction failed: neither binwalk nor unblob completed successfully{timeout_note}; inspect {} and {}, install the missing tools, run `fat doctor`, then retry `fat extract --force {}`",
+                "firmware extraction failed: neither binwalk nor unblob completed successfully{timeout_note}{failure_note}; inspect {} and {}{install_note}, run `fat doctor`, then retry `fat extract --force {}`",
                 project_dir.join("work/binwalk.log").display(),
                 project_dir.join("work/unblob.log").display(),
                 project_dir.display(),

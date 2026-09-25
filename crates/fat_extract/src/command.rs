@@ -93,7 +93,16 @@ where
     };
 
     if timed_out {
-        let seconds = timeout.map(|timeout| timeout.as_secs()).unwrap_or_default();
+        // A remaining retry deadline can be fractional (for example 7.999s
+        // of an 8s budget). Round up rather than claiming it expired a second
+        // early or reporting a positive subsecond timeout as zero seconds.
+        let seconds = timeout
+            .map(|timeout| {
+                timeout
+                    .as_secs()
+                    .saturating_add(u64::from(timeout.subsec_nanos() != 0))
+            })
+            .unwrap_or_default();
         append_line(
             log_path,
             &format!("timeout after {seconds}s; process group {process_group_id} killed"),
