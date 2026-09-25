@@ -15,7 +15,7 @@ Follow [RELEASING.md](RELEASING.md) for versioning, validation, packaging, and p
 Use one `vMAJOR.MINOR.PATCH` product tag and one shared workspace version.
 Keep runtime-data and citation versions synchronized through `cargo-release` replacements.
 Release notes describe user-facing changes; the first regular release introduces the product and its migration path.
-Use existing release tools and local validation; publishing is an explicit maintainer action.
+Use `cargo-dist` for native GitHub platform builds and archive smoke tests; publishing is an explicit maintainer workflow dispatch.
 
 ## MCU analysis and terminal reports
 

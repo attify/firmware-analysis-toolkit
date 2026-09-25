@@ -91,6 +91,29 @@ fn resolver_falls_back_through_environment_installed_user_and_development_roots(
 }
 
 #[test]
+fn portable_bundle_uses_adjacent_data_before_parent_prefix_or_user_data() {
+    let temp = tempdir().unwrap();
+    let prefix = temp.path().join("portable bundle");
+    let adjacent = resource(&prefix.join("share/fat"), "profiles/rehosting");
+    resource(&temp.path().join("share/fat"), "profiles/rehosting");
+    let user = temp.path().join("user");
+    resource(&user, "profiles/rehosting");
+
+    for name in ["fat", "fat.exe"] {
+        let resolver = DataResolver::from_paths(
+            None,
+            None,
+            Some(prefix.join(name)),
+            Some(user.clone()),
+            None,
+        );
+        let resolved = resolver.resolve_required("profiles/rehosting").unwrap();
+        assert_eq!(resolved.origin, DataRootOrigin::ExecutableRelative);
+        assert_eq!(resolved.path, adjacent);
+    }
+}
+
+#[test]
 fn unmarked_development_directory_is_not_a_candidate() {
     let temp = tempdir().unwrap();
     let development = temp.path().join("not-a-checkout");

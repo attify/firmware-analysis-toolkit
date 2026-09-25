@@ -1,7 +1,7 @@
 # Releasing FAT
 
 FAT releases are created on request from tested commits on `master`.
-Use `cargo-release` for shared version updates, `git-cliff` for release-note drafts, and GitHub CLI for GitHub releases.
+Use `cargo-release` for shared version updates, `git-cliff` for release-note drafts, `cargo-dist` for platform archives and release automation, and GitHub CLI for maintainer actions.
 The GitHub release is the download page; the README badge and latest-release link follow it automatically.
 
 ## Version and timing
@@ -30,6 +30,7 @@ Install the tested maintainer tools, or use their official prebuilt binaries:
 cargo install cargo-release --version 1.1.6 --locked
 cargo install git-cliff --version 2.14.2 --locked
 cargo install cargo-about --version 0.8.2 --locked
+cargo install cargo-dist --version 0.33.0 --locked
 gh auth status
 ```
 
@@ -51,7 +52,7 @@ python3 scripts/build-runtime-data-bundle.py --check
 ```
 
 The first command previews the changes.
-The execute steps update Cargo manifests, dependency requirements, the lockfile, runtime-data metadata, citation metadata, and the README's pinned source-install command.
+The execute steps update Cargo manifests, dependency requirements, the lockfile, runtime-data metadata, citation metadata, runtime-data asset names in `dist-workspace.toml`, and the README's pinned source-install command.
 README source-install instructions stay on the regular release when preparing a preview.
 Review the diff before committing it.
 
@@ -82,72 +83,54 @@ Keep the notes focused on user-visible changes, including migration instructions
 Include an absolute link to the tagged installation guide so the notes can also serve as the binary bundle's README.
 Commit the version, notes, and changelog through a release PR.
 
-## Validate and build
+## Validate the release PR
 
-After the release PR is merged, use a clean checkout of the exact release commit on `origin/master`.
-Re-read `release_version` from `Cargo.toml` and check it matches the intended tag.
 Run the checks from [CONTRIBUTING.md](CONTRIBUTING.md):
 
 ```bash
 cargo fmt --all --check
-cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 cargo test --workspace --locked -- --test-threads=1
-cargo test -p firmware-analysis-toolkit --locked --test test_kernel_profile_consistency
 python3 -m unittest discover -s tests/release -p 'test_*.py'
 python3 scripts/build-runtime-data-bundle.py --check
-cargo build --release --locked -p firmware-analysis-toolkit
+dist generate --check
+dist plan
 ```
 
-Build and smoke-test each binary on its intended operating system and CPU.
-Stop preparation if any validation command fails.
-Use the Rust target triple in asset names, such as `aarch64-apple-darwin`.
-Publish only the targets built and tested for this release; the tagged source is also available for source installation.
-Check native shared-library dependencies with `otool -L` on macOS or `ldd` on Linux and document any non-system requirements.
+The Release workflow builds portable archives on native GitHub runners for macOS Apple Silicon and Intel, Linux x86-64 and ARM64, and Windows x86-64.
+Linux x86-64 uses Ubuntu 22.04 (glibc 2.35); ARM64 uses Ubuntu 24.04 (glibc 2.39).
+Both Linux archives are also tested on Fedora 42.
+Each archive contains the executable, matching `share/fat` runtime data, release notes, and dependency license notices.
+Compression libraries are built from their bundled sources to avoid dependencies on runner-specific Homebrew or Linux packages.
 
-## Package a host build
+Pull requests build and test the archives without publishing them.
+The smoke checks extract each archive into a fresh directory, verify its checksum, run the executable, verify the bundled data, and exercise identification and MCU inspection with a synthetic input.
+They also inspect native shared-library dependencies on macOS and Linux.
+The workflow stops before publication if any build or smoke check fails.
 
-Run from the tested checkout, with `release_version` set to its version:
+`dist-workspace.toml` is the source of truth for the generated `.github/workflows/release.yml`.
+Change the configuration or reusable setup/smoke workflow, then run `dist generate`; do not hand-edit the generated workflow.
+Release builds use the compiler pinned in `rust-toolchain.toml`; the minimum supported source-build compiler remains Rust 1.90.
+
+For a local archive build:
 
 ```bash
-release_target="$(rustc -vV | sed -n 's/^host: //p')"
-release_bundle="fat-$release_version-$release_target"
-release_assets="$PWD/dist/$release_version"
-release_stage="$PWD/target/release-stage/$release_bundle"
-release_binary="${CARGO_TARGET_DIR:-target}/release/fat"
-mkdir -p "$release_assets" "$release_stage/bin" "$release_stage/share/fat"
-cp "$release_binary" "$release_stage/bin/fat"
-python3 scripts/build-runtime-data-bundle.py \
-  --output "$release_assets/fat-data-$release_version.zip"
-unzip -q "$release_assets/fat-data-$release_version.zip" -d "$release_stage/share/fat"
-cp LICENSE LICENSING.md THIRD_PARTY_NOTICES.md "$release_stage/"
-cp "$release_notes" "$release_stage/README.md"
-cp -R LICENSES "$release_stage/"
-./scripts/generate-third-party-licenses.sh "$release_stage/third-party-licenses.json"
-"$release_stage/bin/fat" --version
-"$release_stage/bin/fat" data verify
-tar -czf "$release_assets/$release_bundle.tar.gz" \
-  -C "$PWD/target/release-stage" "$release_bundle"
+python3 scripts/prepare-release-resources.py
+bash scripts/generate-third-party-licenses.sh target/release-resources/third-party-licenses.json
+LZMA_API_STATIC=1 BZIP2_NO_PKG_CONFIG=1 dist build --artifacts=local --target TARGET
+python3 scripts/smoke-release.py target/distrib/firmware-analysis-toolkit-TARGET.tar.gz --version "$release_version"
 ```
 
-Use a fresh staging directory for each build.
-Extract the finished archive into a fresh temporary directory, run `bin/fat --version` and `bin/fat data verify` there, and exercise identification with a synthetic input.
-`data verify --json` must report the bundled runtime-data path and the expected version.
-Run the installed smoke test on each platform listed in the release.
-Include the generated third-party license report in every binary archive.
+Replace `TARGET` with the host's Rust target triple and use `.zip` on Windows.
+The archive contains `fat` or `fat.exe` alongside `share`, so keep them together after extraction.
+Archives use the package name and target triple; the enclosing GitHub release tag identifies their version.
+The separately installable runtime-data archive retains the name `fat-data-VERSION.zip`.
 
-Collect all tested archives in the same release-assets directory, then generate checksums:
+## Merge, tag, and publish
 
-```bash
-(cd "$release_assets" && shasum -a 256 ./*.tar.gz ./*.zip > SHA256SUMS)
-(cd "$release_assets" && shasum -a 256 -c SHA256SUMS)
-```
-
-The runtime-data builder also writes the ZIP's adjacent `.sha256` digest.
-Asset names include the version and target; never replace assets of a published version.
-
-## Tag, draft, and publish
-
-Create the tag on the validated release commit after it has landed on `master`:
+Merge the release PR after its validation and platform checks pass.
+Use a clean checkout of the exact merged commit on `origin/master`, and verify the workspace version matches the intended tag.
+Create the product tag on that commit:
 
 ```bash
 release_tag="v$release_version"
@@ -156,23 +139,31 @@ cargo release tag -p firmware-analysis-toolkit --execute --no-confirm
 git push origin "refs/tags/$release_tag"
 ```
 
-Use the reviewed `release_notes` file selected above.
-Create a draft and upload the tested artifacts:
+Create a draft with the reviewed release notes:
 
 ```bash
 gh release create "$release_tag" --verify-tag --draft \
-  --title "FAT $release_version" --notes-file "$release_notes" \
-  "$release_assets"/*.tar.gz "$release_assets"/*.zip \
-  "$release_assets"/*.sha256 "$release_assets/SHA256SUMS"
-gh release view "$release_tag" --web
+  --title "FAT $release_version" --notes-file "$release_notes"
 ```
 
-Confirm the tag's commit, notes, asset names, checksums, and installation instructions.
-Publish a regular release with:
+If a draft already exists, update its notes and target commit instead of creating another.
+Remove obsolete assets from that draft before the first cargo-dist run.
+Never replace assets or move tags belonging to a published version.
+
+Publication is an explicit workflow dispatch; pushing a tag alone does not publish:
 
 ```bash
-gh release edit "$release_tag" --draft=false --prerelease=false --latest
+gh workflow run release.yml --ref "$release_tag" -f tag="$release_tag"
 ```
 
-For a preview, use `--draft=false --prerelease=true --latest=false` instead.
-Verify the published release, download and check its assets, and check the README badge after its cache refreshes.
+The workflow rebuilds and tests the tagged code, uploads the archives and checksums to the draft, and publishes it only after every platform passes.
+A dry run uses `-f tag=dry-run` and leaves releases untouched.
+For a regular release, confirm it is marked Latest:
+
+```bash
+gh release edit "$release_tag" --prerelease=false --latest
+```
+
+For a preview, use `--prerelease=true --latest=false` instead.
+Verify the published tag, release notes, asset list, and checksums by downloading the release assets.
+The GitHub sidebar and README badge follow the latest regular release.

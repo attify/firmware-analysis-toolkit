@@ -36,3 +36,7 @@ result_large_err = "allow"
 type_complexity = "allow"
 # Nested guards remain valid style; Rust 2024 need not rewrite them as let chains.
 collapsible_if = "allow"
+
+[profile.dist]
+inherits = "release"
+lto = "thin"

@@ -12,10 +12,14 @@ categories.workspace = true
 description = "FAT — command-line firmware analysis toolkit"
 publish = false
 
+[package.metadata.dist]
+dist = true
+
 # Only the CLI owns the product tag and non-Cargo version fields.
 [package.metadata.release]
 tag = true
 pre-release-replacements = [
+    { file = "../../dist-workspace.toml", search = 'fat-data-[^"/]+\.zip', replace = 'fat-data-{{version}}.zip', exactly = 2, prerelease = true },
     { file = "../../share/fat/manifest.json", search = '"data_version": "[^"]+"', replace = '"data_version": "{{version}}"', exactly = 1, prerelease = true },
     { file = "../../share/fat/manifest.json", search = '"compatible_fat": "[^"]+"', replace = '"compatible_fat": "={{version}}"', exactly = 1, prerelease = true },
     { file = "../../CITATION.cff", search = '(?m)^version: "[^"]+"$', replace = 'version: "{{version}}"', exactly = 1, prerelease = true },

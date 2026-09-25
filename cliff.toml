@@ -27,4 +27,3 @@ commit_parsers = [
 # Exclude historical QEMU download tags and use FAT SemVer tags only.
 tag_pattern = "^v[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$"
 sort_commits = "oldest"
-

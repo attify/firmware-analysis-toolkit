@@ -5,18 +5,35 @@ The minimal quick start (clone, build, install) lives in the [README](README.md)
 ## Release downloads
 
 Choose a bundle for your operating system and CPU from [FAT Releases](https://github.com/attify/firmware-analysis-toolkit/releases/latest).
-Binary bundles contain `bin/fat`, the matching `share/fat` runtime data, and dependency license notices.
-Verify the archive against `SHA256SUMS`, extract it, and keep the `bin` and `share` directories together:
+Binary bundles contain `fat` (`fat.exe` on Windows), the matching `share/fat` runtime data, and dependency license notices.
+Choose the target matching your machine:
+
+| System | CPU | Target |
+| --- | --- | --- |
+| macOS | Apple Silicon | `aarch64-apple-darwin` |
+| macOS | Intel | `x86_64-apple-darwin` |
+| Linux | x86-64 | `x86_64-unknown-linux-gnu` |
+| Linux | ARM64 | `aarch64-unknown-linux-gnu` |
+| Windows | x86-64 | `x86_64-pc-windows-msvc` |
+
+Linux x86-64 requires glibc 2.35 or newer; Linux ARM64 requires glibc 2.39 or newer.
+The archives are tested on Ubuntu 22.04 (x86-64), Ubuntu 24.04 (ARM64), and Fedora 42 (both CPUs).
+
+Verify the archive against its adjacent `.sha256` file, extract it, and keep the executable and `share` directory together:
 
 ```bash
-# Substitute the version and target from the release's asset list.
-tar -xzf fat-VERSION-TARGET.tar.gz
-cd fat-VERSION-TARGET
-./bin/fat --version
-./bin/fat data verify
-./bin/fat doctor
-export PATH="$PWD/bin:$PATH"
+# Substitute the target from the release's asset list.
+shasum -a 256 -c firmware-analysis-toolkit-TARGET.tar.gz.sha256
+tar -xzf firmware-analysis-toolkit-TARGET.tar.gz
+cd firmware-analysis-toolkit-TARGET
+./fat --version
+./fat data verify
+./fat doctor
+export PATH="$PWD:$PATH"
 ```
+
+On Windows, use `Get-FileHash` to compare the ZIP's SHA-256 with its `.sha256` file, extract with `Expand-Archive`, and run `.\fat.exe data verify` from the extracted directory.
+The Windows binary supports native analysis commands; workflows using Linux filesystem semantics or external Unix tools should run under WSL with the Linux build.
 
 For a Cargo-installed executable, download the same version's `fat-data-VERSION.zip` and run `fat data install --archive ./fat-data-VERSION.zip`.
 The source installer below installs both the executable and its runtime data.
