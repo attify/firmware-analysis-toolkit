@@ -70,8 +70,8 @@ For later releases, generate a draft from the previous published FAT tag:
 
 ```bash
 previous_tag=v2.0.0
-mkdir -p .tmp
-release_notes=.tmp/release-notes.md
+mkdir -p release-notes
+release_notes="release-notes/$release_tag.md"
 git cliff "$previous_tag..HEAD" --tag "$release_tag" --output "$release_notes"
 ```
 

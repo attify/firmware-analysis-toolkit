@@ -1,0 +1,2 @@
+# Runtime-data checksums must see identical bytes on every build host.
+* text=auto eol=lf
