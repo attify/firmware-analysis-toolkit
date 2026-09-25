@@ -14,11 +14,11 @@ members = [
     "crates/fat_query",
     "crates/fat_taint",
 ]
-resolver = "2"
+resolver = "3"
 
 [workspace.package]
 version = "2.0.0-alpha.1"
-edition = "2021"
+edition = "2024"
 rust-version = "1.90"
 license = "FSL-1.1-ALv2"
 authors = ["adi0x90", "Attify"]
@@ -34,3 +34,5 @@ categories = ["command-line-utilities", "development-tools"]
 too_many_arguments = "allow"
 result_large_err = "allow"
 type_complexity = "allow"
+# Nested guards remain valid style; Rust 2024 need not rewrite them as let chains.
+collapsible_if = "allow"

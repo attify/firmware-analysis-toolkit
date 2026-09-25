@@ -161,7 +161,7 @@ pub(crate) fn run(
             && tree_pairs.base_only.is_empty()
         {
             // Single tree mode: can use the filesystem diff to scope binary candidates
-            if let Some((_, ref bp, ref hp)) = tree_pairs.matched.first() {
+            if let Some((_, bp, hp)) = tree_pairs.matched.first() {
                 all_results = diff_changed_binaries(bp, hp, &filesystem)?;
             }
         } else {
@@ -910,9 +910,7 @@ fn render_text_report(report: &FirmwareDiffReport) {
                 if let Some(ref alg) = cred.base_hash_algorithm {
                     println!("      algorithm: {alg}");
                 }
-                if let (Some(ref base_salt), Some(ref head_salt)) =
-                    (&cred.base_salt, &cred.head_salt)
-                {
+                if let (Some(base_salt), Some(head_salt)) = (&cred.base_salt, &cred.head_salt) {
                     if base_salt == head_salt {
                         println!("      salt: {base_salt} (identical)");
                     } else {

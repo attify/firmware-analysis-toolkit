@@ -470,18 +470,15 @@ fn materialize_runtime(
 }
 
 #[cfg(test)]
+#[path = "../../../../tests/support/subprocess.rs"]
+mod test_subprocess;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use std::fs;
     use std::os::unix::fs::PermissionsExt;
     use std::path::Path;
-    use std::sync::{Mutex, OnceLock};
-
-    fn env_lock() -> &'static Mutex<()> {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(()))
-    }
-
     fn write_fake_python(path: &Path, body: &str) {
         fs::write(path, body).expect("write fake python");
         let mut perms = fs::metadata(path).expect("metadata").permissions();
@@ -491,7 +488,13 @@ mod tests {
 
     #[test]
     fn resolve_angr_python_prefers_fat_python_override() {
-        let _guard = env_lock().lock().expect("lock");
+        let Some(mut command) = test_subprocess::isolated_test(
+            "proof::angr::tests::resolve_angr_python_prefers_fat_python_override",
+        ) else {
+            let expected = PathBuf::from(std::env::var_os("FAT_PYTHON").expect("override"));
+            assert_eq!(resolve_angr_python().expect("resolve python"), expected);
+            return;
+        };
         let dir = tempfile::tempdir().expect("tempdir");
         let preferred = dir.path().join("preferred-python");
         let default_python = dir.path().join("python3");
@@ -500,63 +503,54 @@ mod tests {
             &default_python,
             "#!/bin/sh\nprintf 'default-angr\\n'\nexit 0\n",
         );
-
-        let original_path = std::env::var_os("PATH");
-        let original_override = std::env::var_os("FAT_PYTHON");
-        std::env::set_var("PATH", dir.path());
-        std::env::set_var("FAT_PYTHON", &preferred);
-
-        let resolved = resolve_angr_python().expect("resolve python");
-
-        match original_override {
-            Some(value) => std::env::set_var("FAT_PYTHON", value),
-            None => std::env::remove_var("FAT_PYTHON"),
-        }
-        match original_path {
-            Some(value) => std::env::set_var("PATH", value),
-            None => std::env::remove_var("PATH"),
-        }
-
-        assert_eq!(resolved, preferred);
+        command
+            .env("PATH", dir.path())
+            .env("FAT_PYTHON", &preferred);
+        test_subprocess::assert_success(&mut command);
     }
 
     #[test]
     fn resolve_angr_python_falls_back_when_python3_is_broken() {
-        let _guard = env_lock().lock().expect("lock");
+        let Some(mut command) = test_subprocess::isolated_test(
+            "proof::angr::tests::resolve_angr_python_falls_back_when_python3_is_broken",
+        ) else {
+            let expected =
+                PathBuf::from(std::env::var_os("PATH").expect("fixture path")).join("python3.11");
+            assert_eq!(
+                resolve_angr_python().expect("resolve fallback python"),
+                expected
+            );
+            return;
+        };
         let dir = tempfile::tempdir().expect("tempdir");
-        let broken_python3 = dir.path().join("python3");
-        let fallback_python = dir.path().join("python3.11");
         write_fake_python(
-            &broken_python3,
+            &dir.path().join("python3"),
             "#!/bin/sh\necho 'KeyError: r3' 1>&2\nexit 1\n",
         );
         write_fake_python(
-            &fallback_python,
+            &dir.path().join("python3.11"),
             "#!/bin/sh\nprintf 'fallback-angr\\n'\nexit 0\n",
         );
-
-        let original_path = std::env::var_os("PATH");
-        let original_override = std::env::var_os("FAT_PYTHON");
-        std::env::set_var("PATH", dir.path());
-        std::env::remove_var("FAT_PYTHON");
-
-        let resolved = resolve_angr_python().expect("resolve fallback python");
-
-        match original_override {
-            Some(value) => std::env::set_var("FAT_PYTHON", value),
-            None => std::env::remove_var("FAT_PYTHON"),
-        }
-        match original_path {
-            Some(value) => std::env::set_var("PATH", value),
-            None => std::env::remove_var("PATH"),
-        }
-
-        assert_eq!(resolved, fallback_python);
+        command
+            .env("PATH", dir.path())
+            .env_remove("FAT_PYTHON")
+            .current_dir(dir.path());
+        test_subprocess::assert_success(&mut command);
     }
 
     #[test]
     fn resolve_angr_python_prefers_repo_local_runtime_before_path_python3() {
-        let _guard = env_lock().lock().expect("lock");
+        let Some(mut command) = test_subprocess::isolated_test(
+            "proof::angr::tests::resolve_angr_python_prefers_repo_local_runtime_before_path_python3",
+        ) else {
+            let expected = std::env::current_dir().expect("fixture cwd")
+                .join(".fat-runtime/angr311/bin/python");
+            assert_eq!(
+                resolve_angr_python().expect("resolve repo-local python").canonicalize().expect("canonical resolved"),
+                expected.canonicalize().expect("canonical runtime"),
+            );
+            return;
+        };
         let dir = tempfile::tempdir().expect("tempdir");
         let runtime_python = dir.path().join(".fat-runtime/angr311/bin/python");
         fs::create_dir_all(runtime_python.parent().expect("runtime parent")).expect("mkdir");
@@ -564,36 +558,15 @@ mod tests {
             &runtime_python,
             "#!/bin/sh\nprintf 'repo-runtime-angr\\n'\nexit 0\n",
         );
-
-        let broken_python3 = dir.path().join("python3");
         write_fake_python(
-            &broken_python3,
+            &dir.path().join("python3"),
             "#!/bin/sh\necho 'global python broken' 1>&2\nexit 1\n",
         );
-
-        let original_path = std::env::var_os("PATH");
-        let original_override = std::env::var_os("FAT_PYTHON");
-        let original_cwd = std::env::current_dir().expect("cwd");
-        std::env::set_var("PATH", dir.path());
-        std::env::remove_var("FAT_PYTHON");
-        std::env::set_current_dir(dir.path()).expect("chdir");
-
-        let resolved = resolve_angr_python().expect("resolve repo-local python");
-
-        std::env::set_current_dir(original_cwd).expect("restore cwd");
-        match original_override {
-            Some(value) => std::env::set_var("FAT_PYTHON", value),
-            None => std::env::remove_var("FAT_PYTHON"),
-        }
-        match original_path {
-            Some(value) => std::env::set_var("PATH", value),
-            None => std::env::remove_var("PATH"),
-        }
-
-        assert_eq!(
-            resolved.canonicalize().expect("canonical resolved"),
-            runtime_python.canonicalize().expect("canonical runtime"),
-        );
+        command
+            .env("PATH", dir.path())
+            .env_remove("FAT_PYTHON")
+            .current_dir(dir.path());
+        test_subprocess::assert_success(&mut command);
     }
 
     #[test]

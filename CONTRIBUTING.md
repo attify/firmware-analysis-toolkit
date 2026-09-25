@@ -14,6 +14,10 @@ We went this way because Attify is a small company and FAT is a real product rat
 
 FAT is a Rust workspace. You need Rust **1.90** or newer via [rustup](https://rustup.rs); `rust-toolchain.toml` pins the channel and the `rustfmt`/`clippy` components. The [external tools list](INSTALL.md#external-tools) shows what FAT can orchestrate, and `fat doctor` tells you what's actually installed on your machine.
 
+All workspace crates use the Rust 2024 edition and Cargo resolver 3.
+The formatter retains the existing style independently of the language edition.
+Tests that need environment variables or a different working directory should configure an isolated child process with `tests/support/subprocess.rs`.
+
 ```bash
 cargo build                     # build everything
 cargo test                      # run the full test suite

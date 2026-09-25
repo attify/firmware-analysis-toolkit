@@ -542,7 +542,7 @@ fn analyze_with_libclang(
     tu_spec: &TUSpec,
     toolchain_profile: &ToolchainProfile,
 ) -> Result<SourceEvidenceReport, String> {
-    configure_libclang_environment();
+    // clang-sys honors LIBCLANG_PATH and discovers platform toolchain directories.
     let clang = Clang::new().map_err(|e| format!("failed to initialize libclang: {e:?}"))?;
     let index = Index::new(&clang, false, false);
     let normalized_args = normalized_clang_arguments(tu_spec);
@@ -889,16 +889,4 @@ fn clang_version_string() -> String {
                 .and_then(|text| text.lines().next().map(str::to_string))
         })
         .unwrap_or_else(|| "unknown clang".into())
-}
-
-fn configure_libclang_environment() {
-    if std::env::var_os("LIBCLANG_PATH").is_some() {
-        return;
-    }
-    let fallback = PathBuf::from(
-        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib",
-    );
-    if fallback.join("libclang.dylib").is_file() {
-        std::env::set_var("LIBCLANG_PATH", fallback);
-    }
 }

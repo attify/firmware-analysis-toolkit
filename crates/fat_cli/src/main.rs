@@ -2189,6 +2189,14 @@ fn require_research_profile(profile: Option<String>) -> DynResult<String> {
 }
 
 fn main() {
+    // Keep piped child-tool output plain; FAT applies its own styling.
+    // SAFETY: This is the first work at the executable entry point, before
+    // starting threads or initializing libraries that may read the environment.
+    unsafe {
+        std::env::remove_var("COLORTERM");
+        std::env::remove_var("CLICOLOR_FORCE");
+    }
+
     if let Err(err) = run() {
         eprintln!("error: {err}");
         std::process::exit(1);
@@ -2232,24 +2240,7 @@ fn clap_help_color_choice() -> clap::ColorChoice {
     clap::ColorChoice::Auto
 }
 
-/// Remove color-selection variables from this process's environment so child
-/// processes never see a parent-forced color mode. fat renders its own
-/// styling; r2/rabin2 emit a spurious "Color mode 3" warning when they
-/// inherit `COLORTERM=truecolor` while running colorless with piped output.
-fn sanitize_child_color_env() {
-    use std::env;
-
-    env::remove_var("COLORTERM");
-    env::remove_var("CLICOLOR_FORCE");
-}
-
 fn run() -> DynResult<()> {
-    // Keep child processes (r2/rabin2, extractors) plain: fat renders its own
-    // styling, and a parent-forced color environment makes r2 emit
-    // "WARN: Color mode 3 requested but terminal only supports 0" into our
-    // output. Must happen before any child process is spawned.
-    sanitize_child_color_env();
-
     let mut command = Cli::command()
         .color(clap_help_color_choice())
         .styles(clap_help_styles());

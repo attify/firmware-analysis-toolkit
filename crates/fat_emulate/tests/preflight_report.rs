@@ -1,3 +1,6 @@
+#[path = "../../../tests/support/subprocess.rs"]
+mod test_subprocess;
+
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -30,13 +33,15 @@ impl fat_backend::CommandProbe for FakeCommandProbe {
 
 #[test]
 fn preflight_report_structured_host_capabilities_include_backend_summaries_and_diagnostics() {
-    let managed_bundle = std::env::var_os("FAT_MANAGED_LINUX_VM_BUNDLE_DIR");
-    let firmae_upstream = std::env::var_os("FAT_FIRMAE_UPSTREAM_DIR");
-    let firmae_python = std::env::var_os("FAT_FIRMAE_HOST_PYTHON");
-    unsafe {
-        std::env::remove_var("FAT_MANAGED_LINUX_VM_BUNDLE_DIR");
-        std::env::remove_var("FAT_FIRMAE_UPSTREAM_DIR");
-        std::env::remove_var("FAT_FIRMAE_HOST_PYTHON");
+    if let Some(mut command) = test_subprocess::isolated_test(
+        "preflight_report_structured_host_capabilities_include_backend_summaries_and_diagnostics",
+    ) {
+        command
+            .env_remove("FAT_MANAGED_LINUX_VM_BUNDLE_DIR")
+            .env_remove("FAT_FIRMAE_UPSTREAM_DIR")
+            .env_remove("FAT_FIRMAE_HOST_PYTHON");
+        test_subprocess::assert_success(&mut command);
+        return;
     }
 
     let probe = FakeCommandProbe::with_commands(&[("qemu-system-arm", "/usr/bin/qemu-system-arm")]);
@@ -95,19 +100,6 @@ fn preflight_report_structured_host_capabilities_include_backend_summaries_and_d
         diagnostic.actionability,
         DiagnosticActionability::FallbackRecommended
     );
-
-    match managed_bundle {
-        Some(value) => unsafe { std::env::set_var("FAT_MANAGED_LINUX_VM_BUNDLE_DIR", value) },
-        None => unsafe { std::env::remove_var("FAT_MANAGED_LINUX_VM_BUNDLE_DIR") },
-    }
-    match firmae_upstream {
-        Some(value) => unsafe { std::env::set_var("FAT_FIRMAE_UPSTREAM_DIR", value) },
-        None => unsafe { std::env::remove_var("FAT_FIRMAE_UPSTREAM_DIR") },
-    }
-    match firmae_python {
-        Some(value) => unsafe { std::env::set_var("FAT_FIRMAE_HOST_PYTHON", value) },
-        None => unsafe { std::env::remove_var("FAT_FIRMAE_HOST_PYTHON") },
-    }
 }
 
 #[test]
