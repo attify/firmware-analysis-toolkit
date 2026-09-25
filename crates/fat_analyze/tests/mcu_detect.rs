@@ -543,7 +543,7 @@ fn regression_fast_vector_count_stops_before_executable_bytes() {
     }
     // Plausible-looking pointer data after the first mapped handler is code/data,
     // not another hundred IRQ vectors.
-    for word in bytes[0x104..].chunks_exact_mut(4) {
+    for word in bytes[0x104..].as_chunks_mut::<4>().0 {
         word.copy_from_slice(&(base + 0x901).to_le_bytes());
     }
     let profile = detect_cortex_m_ivt(&bytes).expect("boot ROM vectors");

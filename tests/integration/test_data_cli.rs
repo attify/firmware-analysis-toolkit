@@ -1,3 +1,6 @@
+#[path = "../support/subprocess.rs"]
+mod test_subprocess;
+
 use std::fs;
 use std::io::Write;
 use std::path::Path;
@@ -124,6 +127,14 @@ fn data_install_status_verify_and_list_manage_a_versioned_tree() {
 
 #[test]
 fn data_status_resolves_and_verifies_executable_relative_share_data() {
+    // Keep writable executable-copy handles out of concurrently spawned test
+    // children, which can otherwise make exec fail with ETXTBSY on Linux.
+    if let Some(mut command) = test_subprocess::isolated_test(
+        "data_status_resolves_and_verifies_executable_relative_share_data",
+    ) {
+        test_subprocess::assert_success(&mut command);
+        return;
+    }
     let prefix = tempfile::tempdir().unwrap();
     let isolated_home = tempfile::tempdir().unwrap();
     let bin_dir = prefix.path().join("bin");
@@ -181,6 +192,12 @@ fn data_status_resolves_and_verifies_executable_relative_share_data() {
 
 #[test]
 fn data_verify_does_not_fall_back_past_corrupt_executable_relative_data() {
+    if let Some(mut command) = test_subprocess::isolated_test(
+        "data_verify_does_not_fall_back_past_corrupt_executable_relative_data",
+    ) {
+        test_subprocess::assert_success(&mut command);
+        return;
+    }
     let prefix = tempfile::tempdir().unwrap();
     let isolated_home = tempfile::tempdir().unwrap();
     let bin_dir = prefix.path().join("bin");
@@ -217,6 +234,12 @@ fn data_verify_does_not_fall_back_past_corrupt_executable_relative_data() {
 
 #[test]
 fn stale_executable_relative_active_record_is_broken_without_managed_fallback() {
+    if let Some(mut command) = test_subprocess::isolated_test(
+        "stale_executable_relative_active_record_is_broken_without_managed_fallback",
+    ) {
+        test_subprocess::assert_success(&mut command);
+        return;
+    }
     let prefix = tempfile::tempdir().unwrap();
     let isolated_home = tempfile::tempdir().unwrap();
     let bin_dir = prefix.path().join("bin");
@@ -318,6 +341,12 @@ fn data_verify_uses_the_authoritative_environment_tree() {
 
 #[test]
 fn data_status_does_not_fall_back_past_a_configured_broken_environment_root() {
+    if let Some(mut command) = test_subprocess::isolated_test(
+        "data_status_does_not_fall_back_past_a_configured_broken_environment_root",
+    ) {
+        test_subprocess::assert_success(&mut command);
+        return;
+    }
     let prefix = tempfile::tempdir().unwrap();
     let configured = tempfile::tempdir().unwrap();
     let bin_dir = prefix.path().join("bin");

@@ -1668,6 +1668,10 @@ fn fat_extract_fails_without_any_available_extraction_engine() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("install the missing tools"),
+        "missing engines should retain installation advice: {output:?}"
+    );
     let project_dir = only_project_dir(workspace.path());
     assert!(
         !project_dir.join("work/extraction-manifest.json").exists(),
@@ -1703,11 +1707,65 @@ fn fat_extract_fails_when_every_extraction_engine_exits_nonzero() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
+    assert!(
+        !String::from_utf8_lossy(&output.stderr).contains("install the missing tools"),
+        "installed engines that fail should direct users to their logs: {output:?}"
+    );
     let project_dir = only_project_dir(workspace.path());
     assert!(
         !project_dir.join("work/extraction-manifest.json").exists(),
         "failed extraction must not persist a success manifest"
     );
+}
+
+#[test]
+fn fat_extract_reports_binwalk_retry_exhaustion_without_missing_tool_advice() {
+    let workspace = tempdir().expect("workspace");
+    let fake_bin_dir = tempdir().expect("fake bin dir");
+    let firmware_path = workspace.path().join("zero-scan.bin");
+    fs::write(&firmware_path, b"firmware-bytes").expect("firmware file");
+    write_script(
+        &fake_bin_dir.path().join("binwalk"),
+        "#!/bin/sh\nprintf 'incomplete\\n' > partial.txt\nprintf 'Analyzed 0 files for 85 file signatures (187 magic patterns) in 5.0 milliseconds\\n'\n",
+    );
+
+    let output = Command::new(env!("CARGO_BIN_EXE_fat"))
+        .args([
+            "extract",
+            firmware_path.to_str().expect("firmware path"),
+            "--extractor",
+            "binwalk",
+        ])
+        .current_dir(workspace.path())
+        // unblob is absent but was not selected, so it must not trigger advice.
+        .env("PATH", fake_bin_dir.path())
+        .output()
+        .expect("fat extract runs");
+
+    assert!(!output.status.success(), "{output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("firmware extraction failed:"), "{stderr}");
+    assert!(
+        stderr.contains("binwalk: Binwalk analyzed zero files in all 3 attempts"),
+        "the terminal error must report why the installed engine failed: {stderr}"
+    );
+    assert!(stderr.contains("work/binwalk.log"), "{stderr}");
+    assert!(stderr.contains("work/unblob.log"), "{stderr}");
+    assert!(!stderr.contains("install the missing tools"), "{stderr}");
+    let project_dir = only_project_dir(workspace.path());
+    assert_eq!(project_status(&project_dir), ProjectStatus::Error);
+    assert!(!project_dir.join("work/extraction-manifest.json").exists());
+    assert!(!project_dir.join("work/extractions").exists());
+    for attempt in 1..=3 {
+        let archived = project_dir.join(format!("work/binwalk.attempt-{attempt}"));
+        assert_eq!(
+            fs::read_to_string(archived.join("partial.txt")).expect("preserved output"),
+            "incomplete\n"
+        );
+        assert!(project_dir
+            .join(format!("work/binwalk.attempt-{attempt}.log"))
+            .is_file());
+    }
 }
 
 #[test]

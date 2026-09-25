@@ -1,5 +1,6 @@
 use std::ffi::OsString;
 use std::fs;
+use std::io::{self, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -405,21 +406,55 @@ impl Extractor for ExternalExtractor {
             .iter()
             .map(|arg| arg.to_string_lossy().into_owned())
             .collect();
-        let outcome = run_logged_command(
-            self.id,
-            invocation,
-            &request.work_dir,
-            &request.log_path,
-            request.timeout,
-            on_tick,
-        );
+        let mut attempts = 0;
+        let outcome = loop {
+            let elapsed = started.elapsed();
+            let remaining = request.timeout.map(|limit| limit.saturating_sub(elapsed));
+            if remaining == Some(Duration::ZERO) {
+                break Ok(CommandOutcome::TimedOut);
+            }
+            attempts += 1;
+            let outcome = run_logged_command(
+                self.id,
+                invocation.clone(),
+                &request.work_dir,
+                &request.log_path,
+                remaining,
+                &mut |tick| on_tick(elapsed + tick),
+            );
+            // Binwalk 3 can exit successfully before its queued worker starts.
+            // Its explicit zero-file summary means the input was never scanned;
+            // a completed scan with no signatures is a different, valid result.
+            if self.id != "binwalk"
+                || !matches!(outcome, Ok(CommandOutcome::Succeeded))
+                || !binwalk_analyzed_zero_files(&request.log_path)
+            {
+                break outcome;
+            }
+            // A fresh cwd avoids the input-symlink collision in Binwalk 3.1.0.
+            // Keep incomplete output outside the extraction tree so it cannot
+            // be mistaken for evidence from the completed scan.
+            if let Err(err) = preserve_binwalk_attempt(request, attempts) {
+                break Err(err);
+            }
+            if attempts == 3 {
+                return ExtractionOutcome::new(self.id, ExtractStatus::Failed)
+                    .with_detail("Binwalk analyzed zero files in all 3 attempts")
+                    .with_duration(started.elapsed())
+                    .with_args(rendered_args);
+            }
+        };
         let duration = started.elapsed();
 
         match outcome {
             Ok(CommandOutcome::Succeeded) => {
                 let evidence = CarvedEvidence::survey(&request.work_dir);
                 ExtractionOutcome::new(self.id, ExtractStatus::Succeeded)
-                    .with_detail(evidence.summary())
+                    .with_detail(if attempts > 1 {
+                        format!("{} after retry ({} attempts)", evidence.summary(), attempts)
+                    } else {
+                        evidence.summary().to_owned()
+                    })
                     .with_evidence(evidence)
                     .with_duration(duration)
                     .with_args(rendered_args)
@@ -443,4 +478,54 @@ impl Extractor for ExternalExtractor {
                 .with_duration(duration),
         }
     }
+}
+
+/// Read only the log tail: extractor output can be much larger than the input.
+fn binwalk_analyzed_zero_files(log_path: &Path) -> bool {
+    let read_tail = || -> io::Result<Vec<u8>> {
+        let mut log = fs::File::open(log_path)?;
+        let start = log.metadata()?.len().saturating_sub(4096);
+        log.seek(SeekFrom::Start(start))?;
+        let mut tail = Vec::new();
+        log.take(4096).read_to_end(&mut tail)?;
+        Ok(tail)
+    };
+    read_tail().is_ok_and(|tail| {
+        String::from_utf8_lossy(&tail)
+            .lines()
+            .any(|line| line.trim().starts_with("Analyzed 0 files for "))
+    })
+}
+
+fn preserve_binwalk_attempt(request: &ExtractionRequest, attempt: usize) -> io::Result<()> {
+    let nested_log = request.log_path.strip_prefix(&request.work_dir).ok();
+    let archive_base = if nested_log.is_some() {
+        &request.work_dir
+    } else {
+        &request.log_path
+    };
+    let mut sequence = attempt;
+    let (output, log) = loop {
+        let output = archive_base.with_extension(format!("attempt-{sequence}"));
+        let log = archive_base.with_extension(format!("attempt-{sequence}.log"));
+        if !output.try_exists()? && !log.try_exists()? {
+            break (output, log);
+        }
+        sequence += 1;
+    };
+    fs::rename(&request.work_dir, &output)?;
+    let moved_log = nested_log.map(|relative| output.join(relative));
+    fs::rename(moved_log.as_deref().unwrap_or(&request.log_path), &log)?;
+    fs::create_dir_all(&request.work_dir)?;
+    if let Some(parent) = request.log_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    // Keep the primary log useful even when the final attempt was incomplete.
+    fs::write(
+        &request.log_path,
+        format!(
+            "Binwalk analyzed zero files; incomplete output and log preserved at {}\n",
+            log.display()
+        ),
+    )
 }

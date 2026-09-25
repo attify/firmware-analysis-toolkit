@@ -151,6 +151,28 @@ if [[ -z "$jobs" ]]; then
 fi
 [[ "$jobs" =~ ^[1-9][0-9]*$ ]] || die "--jobs must be a positive integer"
 
+linux_dependency_id() {
+  # Keep absent release fields independent of the caller's environment. The
+  # override lets installer tests use a fixture without changing the host.
+  local ID="" ID_LIKE=""
+  local os_release="${FAT_INSTALL_OS_RELEASE:-/etc/os-release}"
+  if [[ -r "$os_release" ]]; then
+    # shellcheck disable=SC1090
+    source "$os_release"
+  fi
+  case "${ID:-}" in
+    fedora|rhel|centos|ubuntu|debian|arch|manjaro) ;;
+    *)
+      # Derivatives such as Omarchy declare compatibility through ID_LIKE.
+      # Preserve explicit recipes and match a whole whitespace-separated token.
+      if [[ "${ID_LIKE:-}" =~ (^|[[:space:]])arch($|[[:space:]]) ]]; then
+        ID=arch
+      fi
+      ;;
+  esac
+  printf '%s\n' "${ID:-}"
+}
+
 install_build_dependencies() {
   if [[ "$(uname -s)" == "Darwin" ]]; then
     if ! command_available cc; then
@@ -159,11 +181,7 @@ install_build_dependencies() {
     return
   fi
 
-  if [[ -r /etc/os-release ]]; then
-    # shellcheck disable=SC1091
-    source /etc/os-release
-  fi
-  case "${ID:-}" in
+  case "$(linux_dependency_id)" in
     fedora|rhel|centos)
       run sudo dnf install -y gcc make
       ;;
@@ -187,11 +205,7 @@ install_extraction_dependencies() {
     return
   fi
 
-  if [[ -r /etc/os-release ]]; then
-    # shellcheck disable=SC1091
-    source /etc/os-release
-  fi
-  case "${ID:-}" in
+  case "$(linux_dependency_id)" in
     fedora)
       run sudo dnf install -y \
         gcc-c++ pkgconf-pkg-config fontconfig-devel freetype-devel \

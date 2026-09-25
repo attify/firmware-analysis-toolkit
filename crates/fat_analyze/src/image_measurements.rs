@@ -47,7 +47,7 @@ pub fn measure_repetition(bytes: &[u8]) -> RepetitionMeasurements {
     };
     result.total_block_count = bytes.len() / BLOCK;
     let mut seen = HashSet::new();
-    for block in bytes.chunks_exact(BLOCK) {
+    for block in bytes.as_chunks::<BLOCK>().0 {
         if !seen.insert(block) {
             result.duplicate_block_count += 1;
         }
@@ -85,7 +85,7 @@ pub fn measure_repetition(bytes: &[u8]) -> RepetitionMeasurements {
         .map(|n| n as usize)
         .unwrap_or(bytes.len());
     let mut uniform_seen = HashSet::new();
-    for block in bytes[..unit].chunks_exact(BLOCK) {
+    for block in bytes[..unit].as_chunks::<BLOCK>().0 {
         if block.iter().all(|b| *b == block[0]) && !uniform_seen.insert(block[0]) {
             result.duplicate_uniform_blocks += 1;
         }

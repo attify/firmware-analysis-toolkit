@@ -942,7 +942,7 @@ fn session_needs_restart(launch: &BootloaderQemuLaunch) -> Result<bool, Bootload
             "-p",
             "-t",
             &launch.tmux_session,
-            "#{pane_dead}\t#{@fat_launch_command_hex}",
+            "#{pane_dead}|#{@fat_launch_command_hex}",
         ])
         .output()?;
     if !output.status.success() {
@@ -950,7 +950,9 @@ fn session_needs_restart(launch: &BootloaderQemuLaunch) -> Result<bool, Bootload
     }
 
     let state = String::from_utf8_lossy(&output.stdout);
-    let (pane_dead, command_identity) = state.trim_end().split_once('\t').unwrap_or(("1", ""));
+    // tmux may sanitize literal control characters in display formats. A
+    // printable separator is unambiguous because the command identity is hex.
+    let (pane_dead, command_identity) = state.trim_end().split_once('|').unwrap_or(("1", ""));
 
     Ok(pane_dead == "1" || command_identity != launch_command_identity(&launch.qemu_command))
 }

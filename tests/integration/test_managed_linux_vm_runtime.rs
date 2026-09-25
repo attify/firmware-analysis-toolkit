@@ -634,15 +634,22 @@ fn firmadyne_failed_stop_is_nonzero_retriable_and_then_idempotent() {
 }
 
 #[test]
-fn fat_doctor_reports_native_arm64_firmae_recipe_checks_when_configured() {
+fn fat_doctor_reports_native_firmae_recipe_checks_when_configured() {
     let path_dir = tempdir().expect("path dir");
     let bundle_dir = tempdir().expect("bundle dir");
     let upstream_dir = tempdir().expect("upstream dir");
     let helper_python = path_dir.path().join("firmae-host-python");
+    let native_arch = match std::env::consts::ARCH {
+        "aarch64" => "arm64",
+        "x86_64" => "amd64",
+        other => other,
+    };
 
     make_executable(
         path_dir.path().join("docker"),
-        "#!/bin/sh\nif [ \"$1\" = \"version\" ]; then printf 'arm64\\n'; exit 0; fi\nexit 1\n",
+        &format!(
+            "#!/bin/sh\nif [ \"$1\" = \"version\" ]; then printf '{native_arch}\\n'; exit 0; fi\nexit 1\n"
+        ),
     );
     make_executable(helper_python.clone(), "#!/bin/sh\nexit 0\n");
     std::fs::create_dir_all(upstream_dir.path().join("database")).expect("database dir");
@@ -682,7 +689,9 @@ fn fat_doctor_reports_native_arm64_firmae_recipe_checks_when_configured() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("FirmAE [firmae]: available"), "{stdout}");
     assert!(
-        stdout.contains("firmae recipe docker-server-arch: pass (arm64 (native))"),
+        stdout.contains(&format!(
+            "firmae recipe docker-server-arch: pass ({native_arch} (native))"
+        )),
         "{stdout}"
     );
     assert!(
