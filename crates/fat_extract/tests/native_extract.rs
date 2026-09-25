@@ -129,6 +129,13 @@ fn cramfs_extracts_little_and_big_endian_filesystems() {
         assert_eq!(result.directories, 3);
         assert_eq!(result.symlinks, 1);
         assert_eq!(result.skipped_special, 0);
+        assert_eq!(
+            result.bytes,
+            (b"#!/bin/sh\necho busybox\n".len()
+                + b"::sysinit:/etc/init.d/rcS\n".len()
+                + fixture.large_file.len()
+                + b"bin/busybox".len()) as u64
+        );
     }
 }
 

@@ -37,6 +37,8 @@ pub struct ExtractionOutcome {
     pub requires_external_tool: bool,
     /// Exact arguments the extractor was invoked with, for reproducibility.
     pub args: Vec<String>,
+    pub artifacts: Vec<crate::pipeline::ArtifactRecord>,
+    pub incomplete: bool,
 }
 
 impl ExtractionOutcome {
@@ -49,6 +51,8 @@ impl ExtractionOutcome {
             duration: Duration::ZERO,
             requires_external_tool: true,
             args: Vec::new(),
+            artifacts: Vec::new(),
+            incomplete: false,
         }
     }
 
@@ -265,6 +269,7 @@ pub fn run_extraction_strategy(
 
         if selection.preempts()
             && outcome.status.succeeded()
+            && !outcome.incomplete
             && extractor.sufficiency().is_met(&outcome.evidence)
         {
             preempted_by = extractor.precedence_reason(&outcome.evidence);
@@ -372,6 +377,10 @@ impl ExternalExtractor {
 impl Extractor for ExternalExtractor {
     fn id(&self) -> &str {
         self.id
+    }
+
+    fn sufficiency(&self) -> Sufficiency {
+        Sufficiency::RootfsOnly
     }
 
     fn extract(

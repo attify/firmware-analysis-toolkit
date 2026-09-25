@@ -503,14 +503,18 @@ dependencies = [
 name = "fat-toolkit-extract"
 version = "2.0.0"
 dependencies = [
+ "aho-corasick",
  "crc32fast",
  "flate2",
  "libc",
+ "lzma-rs",
  "serde",
  "serde_json",
  "tar",
  "tempfile",
  "walkdir",
+ "xz2",
+ "zip",
 ]
 
 [[package]]

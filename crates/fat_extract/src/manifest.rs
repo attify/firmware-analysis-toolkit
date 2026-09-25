@@ -64,6 +64,10 @@ impl EngineReport {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct ExtractionManifest {
+    #[serde(default)]
+    pub artifacts: Vec<crate::pipeline::ArtifactRecord>,
+    #[serde(default)]
+    pub recovery_status: Option<String>,
     pub rootfs_path: Option<PathBuf>,
     pub kernel_paths: Vec<PathBuf>,
     pub file_count: usize,

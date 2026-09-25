@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Native recursive ZIP, TAR, and gzip extraction with SquashFS 2/3/4 decoding, including both byte orders and legacy LZMA block layouts.
+- Extraction manifests include per-artifact lineage, decoder outcomes, limits, and recovery status. Carved images and empty output directories no longer stop rootfs recovery attempts.
+
 ## [2.0.0]
 
 First regular release of the Rust-based FAT CLI.

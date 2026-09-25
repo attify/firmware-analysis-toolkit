@@ -8,11 +8,15 @@
 | --- | --- |
 | `new`, `list`, `info`, `delete` | Manage project workspaces under `.fat-projects/` |
 | `identify` | Classify evidence in an unknown file or directory |
-| `extract` | Run binwalk or unblob and record carved files and filesystem candidates |
+| `extract` | Recursively unpack firmware and record filesystem recovery and per-artifact outcomes |
 | `extract-payload`, `carve` | Extract a known byte range or format-sized object |
 | `analyze` | Derive project signals, findings, and the bootloader snapshot |
 | `doctor` | Report external-tool and backend readiness |
 | `data`, `kernel` | Install and verify runtime data and maintained kernels |
+
+`fat extract firmware.zip --extractor native --json` uses the built-in container and filesystem decoders. The default `auto` selection retains fallback extraction when native recovery is incomplete. `recovery_status` is `rootfs_recovered`, `files_only`, or `partial`; the `artifacts` array explains each recognized branch. `work/native-artifacts.json` also preserves native outcomes when the command cannot produce a final manifest.
+
+For firmware with case-distinct names, create the project on a case-sensitive volume: `fat new firmware.zip --projects-dir /path/to/case-sensitive/projects`, then extract that project. On macOS, use a case-sensitive APFS volume or disk image. Existing project and extractor-selection arguments remain available.
 
 ## Firmware structure and classification
 

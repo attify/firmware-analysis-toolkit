@@ -18,6 +18,7 @@ struct StubExtractor {
     evidence: CarvedEvidence,
     sufficiency: Sufficiency,
     runs: Arc<AtomicUsize>,
+    incomplete: bool,
 }
 
 impl StubExtractor {
@@ -28,6 +29,7 @@ impl StubExtractor {
             evidence,
             sufficiency: Sufficiency::AnyCarvedEvidence,
             runs: Arc::new(AtomicUsize::new(0)),
+            incomplete: false,
         }
     }
 
@@ -65,9 +67,11 @@ impl Extractor for StubExtractor {
         _on_tick: &mut dyn FnMut(Duration),
     ) -> ExtractionOutcome {
         self.runs.fetch_add(1, Ordering::SeqCst);
-        ExtractionOutcome::new(self.id, self.status)
+        let mut outcome = ExtractionOutcome::new(self.id, self.status)
             .with_detail(self.evidence.summary())
-            .with_evidence(self.evidence.clone())
+            .with_evidence(self.evidence.clone());
+        outcome.incomplete = self.incomplete;
+        outcome
     }
 }
 
@@ -77,6 +81,19 @@ fn rootfs_evidence() -> CarvedEvidence {
         file_count: 12,
         ..CarvedEvidence::default()
     }
+}
+
+#[test]
+fn a_recovered_tree_with_an_unresolved_sibling_does_not_stop_fallback() {
+    let mut first = StubExtractor::new("first", rootfs_evidence());
+    first.incomplete = true;
+    let second = StubExtractor::new("second", rootfs_evidence());
+    let second_runs = second.runs();
+    let mut registry = ExtractorRegistry::new();
+    registry.register(first);
+    registry.register(second);
+    run(&registry, &ExtractorSelection::Auto, &harness());
+    assert_eq!(second_runs.load(Ordering::SeqCst), 1);
 }
 
 fn image_evidence() -> CarvedEvidence {

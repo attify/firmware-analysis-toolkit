@@ -41,6 +41,7 @@ pub struct CramfsExtractionResult {
     pub directories: u64,
     pub symlinks: u64,
     pub skipped_special: u64,
+    pub bytes: u64,
 }
 
 #[derive(Debug)]
@@ -120,6 +121,7 @@ pub fn extract_cramfs(
             directories: 1,
             symlinks: 0,
             skipped_special: 0,
+            bytes: 0,
         },
     };
 
@@ -128,6 +130,7 @@ pub fn extract_cramfs(
         return Err(invalid("CramFS root inode is not a directory"));
     }
     state.extract_tree(root, &root_path)?;
+    state.result.bytes = state.total_output;
     if header
         .declared_inodes
         .is_some_and(|count| count != state.inode_count)
