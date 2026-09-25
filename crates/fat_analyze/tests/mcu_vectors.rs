@@ -17,7 +17,7 @@ fn table(base: u32) -> Vec<u8> {
     // Nonzero reserved fields must not terminate the table or become handlers.
     put(&mut bytes, 7, 0xdead_beef);
     put(&mut bytes, 8, base + 0x81);
-    for word in bytes[0x80..].chunks_exact_mut(4) {
+    for word in bytes[0x80..].as_chunks_mut::<4>().0 {
         word.copy_from_slice(&(base + 0x101).to_le_bytes());
     }
     bytes
