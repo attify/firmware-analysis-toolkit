@@ -293,7 +293,7 @@ case "$FAT_BINWALK_TEST_MODE" in
   failed) exit 2 ;;
   empty) printf 'Analyzed 1 file for 85 file signatures\n'; exit 0 ;;
   timeout) sleep 3 ;;
-  once|repeated)
+  once|repeated|nested)
     if [ "$((n % 2))" -eq 0 ]; then
       test ! -e partial.txt || exit 3
       mkdir -p rootfs/etc
@@ -326,13 +326,17 @@ printf 'Analyzed 0 files for 85 file signatures (187 magic patterns) in 5.0 mill
         let request = ExtractionRequest {
             firmware,
             work_dir: root.join("extractions/binwalk"),
-            log_path: root.join("binwalk.log"),
+            log_path: if mode == "nested" {
+                root.join("extractions/binwalk/binwalk.log")
+            } else {
+                root.join("binwalk.log")
+            },
             timeout,
         };
         let result = ExternalExtractor::binwalk().extract(&request, &mut |_| {});
         let count = fs::read_to_string(root.join("count")).unwrap();
         match mode {
-            "once" | "repeated" => {
+            "once" | "repeated" | "nested" => {
                 assert_eq!(count.trim(), "2", "zero scans must be retried");
                 assert_eq!(result.status, ExtractStatus::Succeeded);
                 assert_eq!(
@@ -340,12 +344,16 @@ printf 'Analyzed 0 files for 85 file signatures (187 magic patterns) in 5.0 mill
                     "recovered\n"
                 );
                 assert!(!request.work_dir.join("partial.txt").exists());
-                let previous = root.join("binwalk.attempt-1");
+                let previous = if mode == "nested" {
+                    root.join("extractions/binwalk.attempt-1")
+                } else {
+                    root.join("binwalk.attempt-1")
+                };
                 assert_eq!(
                     fs::read_to_string(previous.join("partial.txt")).unwrap(),
                     "incomplete\n"
                 );
-                assert!(fs::read_to_string(root.join("binwalk.attempt-1.log"))
+                assert!(fs::read_to_string(previous.with_extension("attempt-1.log"))
                     .unwrap()
                     .contains("Analyzed 0 files"));
                 assert!(result.detail.unwrap().contains("retry"));
@@ -389,6 +397,15 @@ printf 'Analyzed 0 files for 85 file signatures (187 magic patterns) in 5.0 mill
             None,
         );
     }
+    #[test]
+    fn retries_with_log_inside_output_directory() {
+        check(
+            "binwalk_recovery::retries_with_log_inside_output_directory",
+            "nested",
+            None,
+        );
+    }
+
     #[test]
     fn preserves_previous_runs_when_retrying_again() {
         check(

@@ -489,21 +489,28 @@ fn binwalk_analyzed_zero_files(log_path: &Path) -> bool {
 }
 
 fn preserve_binwalk_attempt(request: &ExtractionRequest, attempt: usize) -> io::Result<()> {
+    let nested_log = request.log_path.strip_prefix(&request.work_dir).ok();
+    let archive_base = if nested_log.is_some() {
+        &request.work_dir
+    } else {
+        &request.log_path
+    };
     let mut sequence = attempt;
     let (output, log) = loop {
-        let output = request
-            .log_path
-            .with_extension(format!("attempt-{sequence}"));
-        let log = request
-            .log_path
-            .with_extension(format!("attempt-{sequence}.log"));
+        let output = archive_base.with_extension(format!("attempt-{sequence}"));
+        let log = archive_base.with_extension(format!("attempt-{sequence}.log"));
         if !output.try_exists()? && !log.try_exists()? {
             break (output, log);
         }
         sequence += 1;
     };
-    fs::rename(&request.work_dir, output)?;
-    fs::rename(&request.log_path, &log)?;
+    fs::rename(&request.work_dir, &output)?;
+    let moved_log = nested_log.map(|relative| output.join(relative));
+    fs::rename(moved_log.as_deref().unwrap_or(&request.log_path), &log)?;
+    fs::create_dir_all(&request.work_dir)?;
+    if let Some(parent) = request.log_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
     // Keep the primary log useful even when the final attempt was incomplete.
     fs::write(
         &request.log_path,
@@ -511,6 +518,5 @@ fn preserve_binwalk_attempt(request: &ExtractionRequest, attempt: usize) -> io::
             "Binwalk analyzed zero files; incomplete output and log preserved at {}\n",
             log.display()
         ),
-    )?;
-    fs::create_dir_all(&request.work_dir)
+    )
 }
