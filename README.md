@@ -150,6 +150,10 @@ fat verify --help
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Build and test workflow |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Setup, PR checklist, and contribution guide |
 
+## Citation
+
+If you use FAT in research, publications, or technical reports, please cite it using the **Cite this repository** option on GitHub. Include the FAT version or commit used so readers can identify the implementation behind your results. See [CITATION.cff](CITATION.cff) for citation metadata.
+
 ## Maintainers
 
 FAT was authored by [adi0x90](https://github.com/adi0x90), who is also its current maintainer and principal contributor. The project is maintained under [Attify](https://www.attify.com/).
