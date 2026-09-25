@@ -147,6 +147,7 @@ fn data_status_resolves_and_verifies_executable_relative_share_data() {
     assert_eq!(status["status"], "ready");
     assert_eq!(status["data_version"], "2.0.0-alpha.7");
     assert_eq!(status["origin"], "executable-relative");
+    assert_eq!(status["data_root"], data_root.display().to_string());
     assert_eq!(status["active_path"], data_root.display().to_string());
 
     let human = Command::new(&installed_fat)

@@ -52,6 +52,9 @@ def main() -> None:
         assert verified["data_version"] == args.version
         assert verified["verified_files"] == len(manifest["files"])
         assert data_root.resolve() == Path(verified["data_root"]).resolve(), verified
+        status = json.loads(run("data", "status", "--json"))
+        assert status["status"] == "ready", status
+        assert data_root.resolve() == Path(status["data_root"]).resolve(), status
         blob = bytearray(512)
         for index, value in enumerate([0x20001000, 0x08000101] + [0x08000121] * 14):
             struct.pack_into("<I", blob, index * 4, value)
