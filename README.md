@@ -27,7 +27,7 @@ Some of the features include classifying unknown firmware, extracts filesystems,
 Download a binary bundle from [Releases](https://github.com/attify/firmware-analysis-toolkit/releases/latest), or build the latest regular release with Rust 1.90 or newer:
 
 ```bash
-git clone --branch v2.0.0 --depth 1 https://github.com/attify/firmware-analysis-toolkit.git
+git clone --branch v2.0.1 --depth 1 https://github.com/attify/firmware-analysis-toolkit.git
 cd firmware-analysis-toolkit
 cargo build --release --locked
 cargo install --path crates/fat_cli --locked

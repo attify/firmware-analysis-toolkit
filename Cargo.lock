@@ -427,7 +427,7 @@ checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
 
 [[package]]
 name = "fat-toolkit-analyze"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -450,7 +450,7 @@ dependencies = [
 
 [[package]]
 name = "fat-toolkit-backend"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "fat-toolkit-core",
  "fat-toolkit-family",
@@ -462,7 +462,7 @@ dependencies = [
 
 [[package]]
 name = "fat-toolkit-bootloader"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "fat-toolkit-core",
  "fat-toolkit-extract",
@@ -474,7 +474,7 @@ dependencies = [
 
 [[package]]
 name = "fat-toolkit-core"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "rusqlite",
  "semver",
@@ -488,7 +488,7 @@ dependencies = [
 
 [[package]]
 name = "fat-toolkit-emulate"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "fat-toolkit-backend",
  "fat-toolkit-core",
@@ -501,7 +501,7 @@ dependencies = [
 
 [[package]]
 name = "fat-toolkit-extract"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "aho-corasick",
  "crc32fast",
@@ -519,11 +519,11 @@ dependencies = [
 
 [[package]]
 name = "fat-toolkit-family"
-version = "2.0.0"
+version = "2.0.1"
 
 [[package]]
 name = "fat-toolkit-package"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "md-5",
  "num-bigint",
@@ -532,7 +532,7 @@ dependencies = [
 
 [[package]]
 name = "fat-toolkit-plugin-api"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "fat-toolkit-core",
  "serde",
@@ -540,7 +540,7 @@ dependencies = [
 
 [[package]]
 name = "fat-toolkit-plugin-host"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "fat-toolkit-analyze",
  "fat-toolkit-core",
@@ -550,7 +550,7 @@ dependencies = [
 
 [[package]]
 name = "fat-toolkit-query"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "clang",
  "fat-toolkit-core",
@@ -568,7 +568,7 @@ dependencies = [
 
 [[package]]
 name = "fat-toolkit-taint"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "dirs",
  "fat-toolkit-core",
@@ -607,7 +607,7 @@ checksum = "26b73573e6edcd2af0cdf47bd6cb58f0b3839491263c314eaad1ccf24430e1de"
 
 [[package]]
 name = "firmware-analysis-toolkit"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "clap",
  "crc32fast",
