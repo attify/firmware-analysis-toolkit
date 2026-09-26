@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [2.0.1]
+
+See the [release notes](release-notes/v2.0.1.md) for installation and retry instructions.
+
 ### Added
 
 - Native recursive ZIP, TAR, and gzip extraction with SquashFS 2/3/4 decoding, including both byte orders and legacy LZMA block layouts.

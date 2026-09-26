@@ -17,9 +17,9 @@ name = "fat_plugin_host"
 path = "src/lib.rs"
 
 [dependencies]
-fat_analyze = { version = "=2.0.0", path = "../fat_analyze", package = "fat-toolkit-analyze" }
-fat_core = { version = "=2.0.0", path = "../fat_core", package = "fat-toolkit-core" }
-fat_plugin_api = { version = "=2.0.0", path = "../fat_plugin_api", package = "fat-toolkit-plugin-api" }
+fat_analyze = { version = "=2.0.1", path = "../fat_analyze", package = "fat-toolkit-analyze" }
+fat_core = { version = "=2.0.1", path = "../fat_core", package = "fat-toolkit-core" }
+fat_plugin_api = { version = "=2.0.1", path = "../fat_plugin_api", package = "fat-toolkit-plugin-api" }
 tempfile = "3"
 
 [[test]]
