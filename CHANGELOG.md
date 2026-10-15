@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- `inspect bmc` reports raw flash layout, FIT authentication metadata, located BMC markers, and CRC-validated U-Boot environments with text, JSON, and SARIF output.
+
 ## [2.0.1]
 
 See the [release notes](release-notes/v2.0.1.md) for installation and retry instructions.

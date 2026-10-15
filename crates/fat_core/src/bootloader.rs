@@ -23,6 +23,8 @@ pub struct BootloaderSnapshot {
     pub filesystem_headers: Vec<FilesystemHeader>,
     #[serde(default)]
     pub embedded_signatures: Vec<EmbeddedSignature>,
+    #[serde(default)]
+    pub fit: crate::fit::FitScanReport,
     pub findings: Vec<String>,
 }
 

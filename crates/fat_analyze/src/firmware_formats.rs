@@ -1,6 +1,7 @@
 use std::sync::LazyLock;
 
 use aho_corasick::AhoCorasick;
+use fat_core::fit::FitDiagnostic;
 use fat_core::inspection::{CompressionMember, ContainerHeader, FilesystemHeader};
 use memchr::memmem;
 
@@ -94,14 +95,21 @@ pub struct NativeFormatScan {
     pub container_headers: Vec<ContainerHeader>,
     pub compression_members: Vec<CompressionMember>,
     pub filesystem_headers: Vec<FilesystemHeader>,
+    pub fdt_diagnostics: Vec<FitDiagnostic>,
 }
 
 pub fn scan(bytes: &[u8]) -> NativeFormatScan {
     let candidates = collect_candidates(bytes);
+    let mut fdt_diagnostics = Vec::new();
     NativeFormatScan {
-        container_headers: parse_native_container_headers(bytes, &candidates.container),
+        container_headers: parse_native_container_headers(
+            bytes,
+            &candidates.container,
+            &mut fdt_diagnostics,
+        ),
         compression_members: parse_compression_members(bytes, &candidates.compression),
         filesystem_headers: parse_filesystem_headers(bytes, &candidates.filesystem),
+        fdt_diagnostics,
     }
 }
 
@@ -167,14 +175,24 @@ fn collect_candidates(bytes: &[u8]) -> CandidateOffsets {
     candidates
 }
 
-fn parse_native_container_headers(bytes: &[u8], offsets: &[usize]) -> Vec<ContainerHeader> {
+fn parse_native_container_headers(
+    bytes: &[u8],
+    offsets: &[usize],
+    diagnostics: &mut Vec<FitDiagnostic>,
+) -> Vec<ContainerHeader> {
     let mut containers = Vec::new();
+    let mut fdt_budget = FdtScanBudget::default();
     for &offset in offsets {
         let Some(slice) = bytes.get(offset..) else {
             continue;
         };
-        if let Some(header) = parse_fdt_at(slice, offset as u64) {
-            containers.push(header);
+        if slice.starts_with(&FDT_MAGIC) {
+            if !fdt_budget.exhausted {
+                match parse_fdt_at(slice, offset as u64, &mut fdt_budget) {
+                    Ok(header) => containers.push(header),
+                    Err(diagnostic) => diagnostics.push(diagnostic),
+                }
+            }
             continue;
         }
         if let Some(header) = parse_trx_at(slice, offset as u64) {
@@ -935,7 +953,60 @@ fn parse_ext_header(bytes: &[u8], magic_offset: usize) -> Option<FilesystemHeade
     })
 }
 
-fn parse_fdt_at(bytes: &[u8], offset: u64) -> Option<ContainerHeader> {
+/// A validated, borrowed tree; property values (including firmware payloads) are never copied.
+pub(crate) struct ValidatedFdt<'a> {
+    pub total_size: usize,
+    pub nodes: Vec<FdtNode<'a>>,
+}
+
+pub(crate) struct FdtNode<'a> {
+    pub name: &'a str,
+    pub offset: usize,
+    pub children: Vec<usize>,
+    pub properties: Vec<FdtProperty<'a>>,
+}
+
+pub(crate) struct FdtProperty<'a> {
+    pub name: &'a str,
+    pub offset: usize,
+    pub value: &'a [u8],
+}
+
+impl<'a> FdtNode<'a> {
+    pub fn property(&self, name: &str) -> Option<&FdtProperty<'a>> {
+        self.properties
+            .iter()
+            .find(|property| property.name == name)
+    }
+}
+
+impl ValidatedFdt<'_> {
+    pub fn child(&self, parent: usize, name: &str) -> Option<usize> {
+        self.nodes[parent]
+            .children
+            .iter()
+            .copied()
+            .find(|&index| self.nodes[index].name == name)
+    }
+
+    pub fn is_fit(&self) -> bool {
+        self.child(0, "images").is_some_and(|images| {
+            self.child(0, "configurations").is_some()
+                || self.nodes[images].children.iter().any(|&index| {
+                    let node = &self.nodes[index];
+                    ["type", "data", "data-offset", "data-position"]
+                        .iter()
+                        .any(|name| node.property(name).is_some())
+                        || node.children.iter().any(|&child| {
+                            let name = self.nodes[child].name;
+                            name.starts_with("hash") || name.starts_with("signature")
+                        })
+                })
+        })
+    }
+}
+
+fn fdt_blocks(bytes: &[u8]) -> Option<(usize, usize, &[u8], &[u8])> {
     if bytes.get(..4)? != FDT_MAGIC || bytes.len() < FDT_HEADER_SIZE {
         return None;
     }
@@ -974,11 +1045,91 @@ fn parse_fdt_at(bytes: &[u8], offset: u64) -> Option<ContainerHeader> {
         return None;
     }
 
-    let structure = bytes.get(structure_offset..structure_end)?;
-    let strings = bytes.get(strings_offset..strings_end)?;
-    let is_fit = validate_fdt_structure(structure, strings)?;
+    Some((
+        total_size,
+        structure_offset,
+        bytes.get(structure_offset..structure_end)?,
+        bytes.get(strings_offset..strings_end)?,
+    ))
+}
+
+/// Shared limits for every scan that walks FDT structure blocks. Header ranges
+/// are checked before charging work; exhausted budgets never allocate a tree.
+#[derive(Default)]
+pub(crate) struct FdtScanBudget {
+    candidates: usize,
+    structure_bytes: usize,
+    pub exhausted: bool,
+}
+
+impl FdtScanBudget {
+    pub fn parse<'a>(
+        &mut self,
+        bytes: &'a [u8],
+        offset: u64,
+    ) -> Result<ValidatedFdt<'a>, FitDiagnostic> {
+        const MAX_CANDIDATES: usize = 1024;
+        const MAX_STRUCTURE_BYTES: usize = 256 * 1024 * 1024;
+
+        if self.candidates >= MAX_CANDIDATES {
+            self.exhausted = true;
+            return Err(fdt_diagnostic(
+                offset,
+                "FDT-SCAN-LIMIT",
+                "FDT candidate budget exceeded",
+            ));
+        }
+        self.candidates += 1;
+        let (total_size, structure_offset, structure, strings) =
+            fdt_blocks(bytes).ok_or_else(|| {
+                fdt_diagnostic(
+                    offset,
+                    "FDT-INVALID",
+                    "invalid FDT header, block ranges, or reserve map",
+                )
+            })?;
+        if structure.len() > MAX_STRUCTURE_BYTES - self.structure_bytes {
+            self.exhausted = true;
+            return Err(fdt_diagnostic(
+                offset,
+                "FDT-SCAN-LIMIT",
+                "FDT cumulative structure budget exceeded",
+            ));
+        }
+        self.structure_bytes += structure.len();
+        let nodes =
+            validate_fdt_structure(structure, strings, structure_offset).map_err(|message| {
+                fdt_diagnostic(
+                    offset,
+                    if message.contains("budget") {
+                        "FDT-PARSE-LIMIT"
+                    } else {
+                        "FDT-INVALID"
+                    },
+                    message,
+                )
+            })?;
+        Ok(ValidatedFdt { total_size, nodes })
+    }
+}
+
+fn fdt_diagnostic(offset: u64, code: &str, message: &str) -> FitDiagnostic {
+    FitDiagnostic {
+        offset,
+        code: code.to_string(),
+        message: message.to_string(),
+    }
+}
+
+fn parse_fdt_at(
+    bytes: &[u8],
+    offset: u64,
+    budget: &mut FdtScanBudget,
+) -> Result<ContainerHeader, FitDiagnostic> {
+    let tree = budget.parse(bytes, offset)?;
+    let is_fit = tree.is_fit();
     let format = if is_fit { "fit" } else { "fdt" };
-    Some(ContainerHeader {
+    Ok(ContainerHeader {
         format: format.to_string(),
         offset,
         header_size: FDT_HEADER_SIZE as u64,
@@ -986,8 +1137,8 @@ fn parse_fdt_at(bytes: &[u8], offset: u64) -> Option<ContainerHeader> {
         vendor: None,
         package_name: None,
         timestamp_unix: None,
-        declared_payload_size: Some(total_size as u64),
-        actual_payload_size: Some(total_size as u64),
+        declared_payload_size: Some(tree.total_size as u64),
+        actual_payload_size: Some(tree.total_size as u64),
         payload_type: Some(
             if is_fit {
                 "boot image tree"
@@ -1036,73 +1187,138 @@ fn valid_fdt_reserve_map(bytes: &[u8], mut cursor: usize, limit: usize) -> bool 
     false
 }
 
-fn validate_fdt_structure(structure: &[u8], strings: &[u8]) -> Option<bool> {
-    let mut cursor = 0usize;
-    let mut node_depth = 0usize;
-    let mut saw_root = false;
-    let mut saw_images = false;
-    let mut saw_configurations = false;
+fn validate_fdt_structure<'a>(
+    structure: &'a [u8],
+    strings: &'a [u8],
+    structure_offset: usize,
+) -> Result<Vec<FdtNode<'a>>, &'static str> {
+    use std::collections::BTreeSet;
 
+    let mut cursor = 0usize;
+    let mut nodes: Vec<FdtNode<'a>> = Vec::new();
+    let mut stack: Vec<usize> = Vec::new();
+    let mut sibling_names = BTreeSet::new();
+    let mut property_names = BTreeSet::new();
+    let mut path_lengths: Vec<usize> = Vec::new();
+    let mut tokens = 0usize;
     loop {
-        let token = read_u32(structure, cursor, false)?;
-        cursor = cursor.checked_add(4)?;
+        tokens += 1;
+        if tokens > 131_072 {
+            return Err("FDT token budget exceeded");
+        }
+        let token_offset = cursor;
+        let token = read_u32(structure, cursor, false).ok_or("truncated FDT token")?;
+        cursor += 4;
         match token {
             FDT_BEGIN_NODE => {
-                let name_tail = structure.get(cursor..)?;
-                let terminator = name_tail.iter().position(|byte| *byte == 0)?;
-                let name = name_tail.get(..terminator)?;
-                if node_depth == 0 {
-                    if saw_root || !name.is_empty() {
-                        return None;
-                    }
-                    saw_root = true;
-                } else {
-                    if name.is_empty() || !valid_fdt_name(name) || node_depth >= 256 {
-                        return None;
-                    }
-                    if node_depth == 1 {
-                        saw_images |= name == b"images";
-                        saw_configurations |= name == b"configurations";
-                    }
+                if nodes.len() >= 16_384 || stack.len() >= 256 {
+                    return Err("FDT node or depth budget exceeded");
                 }
-                node_depth = node_depth.checked_add(1)?;
-                cursor = align_up_four(cursor.checked_add(terminator)?.checked_add(1)?)?;
+                let name_tail = structure.get(cursor..).ok_or("missing FDT node name")?;
+                let terminator = name_tail
+                    .iter()
+                    .take(256)
+                    .position(|byte| *byte == 0)
+                    .ok_or("unterminated or oversized FDT node name")?;
+                let name = &name_tail[..terminator];
+                if stack.is_empty() {
+                    if !nodes.is_empty() || !name.is_empty() {
+                        return Err("invalid FDT root");
+                    }
+                } else if name.is_empty() || !valid_fdt_name(name) {
+                    return Err("invalid FDT node name");
+                }
+                let name = std::str::from_utf8(name).map_err(|_| "invalid FDT node name")?;
+                let parent = stack.last().copied();
+                if !sibling_names.insert((parent, name)) {
+                    return Err("duplicate FDT sibling node");
+                }
+                let path_length = path_lengths.last().copied().unwrap_or(0) + name.len() + 1;
+                if path_length > 4096 {
+                    return Err("FDT path budget exceeded");
+                }
+                let index = nodes.len();
+                if let Some(parent) = parent {
+                    nodes[parent].children.push(index);
+                }
+                nodes.push(FdtNode {
+                    name,
+                    offset: structure_offset + token_offset,
+                    children: Vec::new(),
+                    properties: Vec::new(),
+                });
+                stack.push(index);
+                path_lengths.push(path_length);
+                cursor =
+                    align_up_four(cursor + terminator + 1).ok_or("FDT node offset overflow")?;
                 if cursor > structure.len() {
-                    return None;
+                    return Err("truncated FDT node");
                 }
             }
             FDT_END_NODE => {
-                node_depth = node_depth.checked_sub(1)?;
+                stack.pop().ok_or("unmatched FDT end node")?;
+                path_lengths.pop();
             }
             FDT_PROP => {
-                if node_depth == 0 {
-                    return None;
+                let index = *stack.last().ok_or("FDT property outside a node")?;
+                if !nodes[index].children.is_empty() {
+                    return Err("FDT property follows child nodes");
                 }
-                let value_size = usize::try_from(read_u32(structure, cursor, false)?).ok()?;
-                let name_offset = usize::try_from(read_u32(structure, cursor + 4, false)?).ok()?;
-                cursor = cursor.checked_add(8)?;
-                let property_name = strings.get(name_offset..)?;
-                let name_end = property_name.iter().position(|byte| *byte == 0)?;
-                let name = property_name.get(..name_end)?;
+                if property_names.len() >= 65_536 {
+                    return Err("FDT property budget exceeded");
+                }
+                let value_size =
+                    read_u32(structure, cursor, false).ok_or("truncated FDT property")? as usize;
+                let name_offset = read_u32(structure, cursor + 4, false)
+                    .ok_or("truncated FDT property")? as usize;
+                cursor += 8;
+                let property_name = strings
+                    .get(name_offset..)
+                    .ok_or("FDT property name offset out of range")?;
+                let name_end = property_name
+                    .iter()
+                    .take(256)
+                    .position(|byte| *byte == 0)
+                    .ok_or("unterminated or oversized FDT property name")?;
+                let name = &property_name[..name_end];
                 if name.is_empty() || !valid_fdt_name(name) {
-                    return None;
+                    return Err("invalid FDT property name");
                 }
-                cursor = align_up_four(cursor.checked_add(value_size)?)?;
+                let name = std::str::from_utf8(name).map_err(|_| "invalid FDT property name")?;
+                if !property_names.insert((index, name)) {
+                    return Err("duplicate FDT property");
+                }
+                let end = cursor
+                    .checked_add(value_size)
+                    .ok_or("FDT property length overflow")?;
+                let value = structure
+                    .get(cursor..end)
+                    .ok_or("FDT property value out of range")?;
+                nodes[index].properties.push(FdtProperty {
+                    name,
+                    offset: structure_offset + token_offset,
+                    value,
+                });
+                cursor = align_up_four(end).ok_or("FDT property offset overflow")?;
                 if cursor > structure.len() {
-                    return None;
+                    return Err("truncated FDT property padding");
                 }
             }
             FDT_NOP => {}
             FDT_END => {
-                if !saw_root
-                    || node_depth != 0
-                    || structure.get(cursor..)?.iter().any(|byte| *byte != 0)
+                if nodes.is_empty()
+                    || !stack.is_empty()
+                    || structure
+                        .get(cursor..)
+                        .ok_or("truncated FDT end")?
+                        .iter()
+                        .any(|byte| *byte != 0)
                 {
-                    return None;
+                    return Err("invalid FDT end");
                 }
-                return Some(saw_images && saw_configurations);
+                return Ok(nodes);
             }
-            _ => return None,
+            _ => return Err("unknown FDT token"),
         }
     }
 }

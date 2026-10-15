@@ -73,7 +73,15 @@ fat inspect mcu --file ./firmware.bin
 fat inspect mcu --file ./firmware.bin --details
 ```
 
-Both commands support `--json` for the full structured analysis report.
+For BMC flash images, inspect layout, FIT authentication metadata, and stored environments:
+
+```bash
+fat inspect bmc --file ./flash.mtd
+fat inspect bmc --file ./flash.mtd --details
+```
+
+Both inspection workflows support `--json` for the full structured analysis report.
+See [Inspecting BMC firmware](docs/bmc-inspection.md) for SARIF output and environment overrides.
 
 ### Image to Runtime
 

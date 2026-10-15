@@ -40,6 +40,7 @@ use walkdir::WalkDir;
 mod adapter_routing;
 mod android_cmd;
 mod benchmark_cmd;
+mod bmc_cmd;
 mod bootloader_handoff_cmd;
 mod bundle_reality_cmd;
 mod carve_cmd;
@@ -2089,6 +2090,28 @@ enum BootloaderCommand {
 
 #[derive(Debug, Clone, Subcommand)]
 enum InspectCommand {
+    /// Inspect BMC flash layout, FIT metadata, and stored U-Boot environments.
+    Bmc {
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long, conflicts_with = "sarif")]
+        json: bool,
+        /// Emit SARIF 2.1.0 with located observations.
+        #[arg(long)]
+        sarif: bool,
+        /// Expand the same evidence with reference tables.
+        #[arg(long)]
+        details: bool,
+        /// Explicit environment region offset (decimal or hex).
+        #[arg(long, requires = "env_size", value_parser = bmc_cmd::parse_number)]
+        env_offset: Option<u64>,
+        /// Total stored environment size, including its header (decimal or hex).
+        #[arg(long, requires = "env_offset", value_parser = bmc_cmd::parse_number)]
+        env_size: Option<u64>,
+        /// Emit the report, then exit nonzero if warning findings exist.
+        #[arg(long)]
+        fail_on_warning: bool,
+    },
     Headers {
         project: Option<PathBuf>,
         #[arg(long)]
@@ -2954,6 +2977,23 @@ fn run() -> DynResult<()> {
             ),
         },
         Some(Command::Inspect { subject }) => match subject {
+            InspectCommand::Bmc {
+                file,
+                json,
+                sarif,
+                details,
+                env_offset,
+                env_size,
+                fail_on_warning,
+            } => bmc_cmd::run(
+                &file,
+                json,
+                sarif,
+                details,
+                env_offset,
+                env_size,
+                fail_on_warning,
+            ),
             InspectCommand::Headers {
                 project,
                 file,

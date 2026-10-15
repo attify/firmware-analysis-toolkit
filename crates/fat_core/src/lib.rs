@@ -1,5 +1,7 @@
 pub mod artifacts;
 pub mod benchmark;
+pub mod bmc;
+pub mod boot_env;
 pub mod bootloader;
 pub mod data_dir;
 pub mod data_manifest;
@@ -14,6 +16,7 @@ pub mod experiment_selector;
 pub mod finding;
 pub mod fingerprint;
 pub mod firmware_diff;
+pub mod fit;
 pub mod ids;
 pub mod inspection;
 pub mod inventory;
