@@ -47,7 +47,7 @@ Keep existing FAT 1.x workspaces until you have recreated the projects you need 
 
 ## Arch Linux and Omarchy
 
-Use a regular account with `sudo` access. This sequence was validated on Omarchy 4.0.4 (x86-64), using an 8 GB VM and two build jobs. A clean Arch installation was not separately tested.
+Use a regular account with `sudo` access. The host package setup was validated on Omarchy 4.0.4 (x86-64), using an 8 GB VM and two build jobs. A clean Arch installation was not separately tested.
 
 ### Install FAT and the default extraction engine
 
@@ -56,7 +56,7 @@ Install the prerequisites with a full system upgrade, then initialize Rust. If y
 ```bash
 sudo pacman -Syu --needed git rustup python
 rustup default stable
-rustc --version  # must be 1.90 or newer
+rustc --version  # must be 1.91 or newer
 ```
 
 The installer requires Rust and Python to be present; `--install-system-deps` does not bootstrap them.
@@ -70,16 +70,9 @@ cd firmware-analysis-toolkit
 export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 ```
 
-This installs FAT, its runtime data, and pinned Binwalk 3.1.0 when no usable Binwalk is already available. Use `--jobs 1` if the build runs short of memory. Add the `PATH` export to your shell's startup file to keep it in future sessions.
+This installs FAT, its runtime data, and pinned binwalk-ng 4.0.0 (executable: `binwalk`). Existing installations follow the [Binwalk migration policy](#binwalk-migration). Use `--jobs 1` if the build runs short of memory. Add the `PATH` export to your shell's startup file to keep it in future sessions.
 
 The installer uses Arch packages when `/etc/os-release` identifies Arch/Manjaro directly or an otherwise unrecognized distribution declares `arch` in `ID_LIKE`, as Omarchy does. Explicitly supported distribution IDs take precedence.
-
-For an older FAT checkout that rejects Omarchy, install the native packages manually and rerun without `--install-system-deps`:
-
-```bash
-sudo pacman -S --needed base-devel pkgconf fontconfig freetype2 e2fsprogs 7zip squashfs-tools
-./scripts/install.sh --jobs 2
-```
 
 `7zip` is the current Arch package name; the installer's `p7zip` request resolves through its compatibility alias on the tested host.
 
@@ -91,12 +84,11 @@ fat data verify
 fat doctor --strict
 ```
 
-Binwalk 3.1.0 can occasionally exit before scanning its input. FAT retries that specific zero-file result up to twice, keeps incomplete output and logs beside `work/binwalk.log`, and reports failure if all attempts scan zero files.
-
-The installer also extracts a synthetic ZIP and verifies the recovered contents. To repeat that check from the checkout:
+The installer verifies ZIP and SquashFS extraction through Binwalk, plus an LZO round trip. To repeat that check from the checkout:
 
 ```bash
-python3 scripts/smoke-test-extraction.py --fat "$HOME/.local/bin/fat"
+python3 scripts/smoke-test-extraction.py --fat "$HOME/.local/bin/fat" \
+  --expected-binwalk-version 'binwalk-ng 4.0.0' --format-helpers
 ```
 
 ### Add the tools your workflow needs
@@ -137,7 +129,7 @@ pipx install ubi-reader
 unblob --show-external-dependencies
 ```
 
-The base packages and these additions still do not supply every unblob extractor. In particular, its SquashFS handler needs `sasquatch` even when `unsquashfs` is installed. Treat missing entries in the dependency report as unavailable format support. Follow [unblob's extractor installation instructions](https://unblob.org/installation/#install-extractors) for the remaining formats, or use its upstream Docker distribution:
+The extraction profile supplies Sasquatch, which unblob can also use. These packages still do not supply every unblob extractor. Treat missing entries in the dependency report as unavailable format support. Follow [unblob's extractor installation instructions](https://unblob.org/installation/#install-extractors) for the remaining formats, or use its upstream Docker distribution:
 
 ```bash
 docker pull ghcr.io/onekey-sec/unblob:latest
@@ -150,7 +142,7 @@ The container supplied all reported extractors and recovered a test SquashFS fil
 
 ## Installer options
 
-The source installer requires Rust 1.90+, Python 3, and a C compiler. The default extraction profile also needs Binwalk's native build dependencies; use `--install-system-deps` to install the supported host packages.
+The source installer requires Rust 1.91+ and Python 3. Use `--install-system-deps` for a fresh installation: it installs the build dependencies and extraction utilities, including `7z`, SquashFS tools, and `lzop`. The extraction profile builds pinned binwalk-ng and Sasquatch in the selected prefix.
 
 ```bash
 ./scripts/install.sh --install-system-deps
@@ -164,12 +156,28 @@ The source installer requires Rust 1.90+, Python 3, and a C compiler. The defaul
 | `--profile core\|extraction` | CLI plus runtime data, optionally with Binwalk (default: extraction) |
 | `--prefix PATH` | Install under PATH (default: `~/.local`); add its `bin` directory to your shell's PATH |
 | `--data-dir PATH` | Store data there and link `PREFIX/share/fat` for automatic discovery; refuse an existing conflicting path |
-| `--jobs N`, `--native` | Choose Cargo concurrency or optimize for this CPU |
+| `--jobs N`, `--native` | Choose build concurrency or optimize Rust binaries for this CPU |
 | `--test` | Run locked workspace tests before installation |
 | `--dry-run` | Print mutating commands without executing them or deleting temporary files |
 | `--skip-extraction-smoke` | Explicitly skip the synthetic extraction check |
 
 No `FAT_DATA_DIR` export is needed for installer-managed custom data. An existing `FAT_DATA_DIR` environment override still takes precedence; unset it to use the installation's data. Keep the linked custom directory in place when using FAT.
+
+### Binwalk migration
+
+The extraction profile installs binwalk-ng 4.0.0 and Sasquatch `sasquatch-v4.5.1-6`. The Binwalk command remains `binwalk`. Rerun the installer to upgrade an existing installation and add the extraction helpers:
+
+```bash
+./scripts/install.sh --install-system-deps --prefix "$HOME/.local"
+export PATH="$HOME/.local/bin:$PATH"
+binwalk --version  # binwalk-ng 4.0.0
+```
+
+Older Binwalk and Sasquatch executables in `PREFIX/bin` are replaced; matching managed installations are reused. Tools elsewhere on PATH are preserved. Conflicting executable symlinks are refused; use a separate prefix in that case. Keep `PREFIX/bin` first on PATH.
+
+Sasquatch is built from a checksum-verified source release, including `sasquatch-v4be` for big-endian SquashFS v4. `lzop` is installed through the system package manager with `--install-system-deps`; without that option, it must already be available. The installer verifies ZIP and SquashFS extraction through Binwalk and an LZO compression/decompression round trip.
+
+Automatic extraction still tries FAT's native engine first. Other specialized Binwalk formats may need additional tools from the [upstream dependency guide](https://github.com/binwalk-ng/binwalk-ng/blob/v4.0.0/dependencies/README.md).
 
 ## External tools
 
@@ -177,7 +185,7 @@ FAT orchestrates external tools. Install only those needed for your workflow; `f
 
 | Tool | Needed for | Typical installation |
 | --- | --- | --- |
-| binwalk | Firmware extraction | `./scripts/install.sh --profile extraction` installs pinned Rust Binwalk 3.1.0 |
+| binwalk | Firmware extraction | `./scripts/install.sh --profile extraction` installs pinned binwalk-ng 4.0.0 |
 | unblob | Alternative extraction | `pipx install unblob`, plus its [external extractors](https://unblob.org/installation/#install-extractors) |
 | debugfs | ext filesystem extraction and ext2 repair | `brew install e2fsprogs` or `apt install e2fsprogs` |
 | radare2 | Binary triage and symbol resolution | `brew install radare2` or `apt install radare2` |

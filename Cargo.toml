@@ -19,7 +19,7 @@ resolver = "3"
 [workspace.package]
 version = "2.0.1"
 edition = "2024"
-rust-version = "1.90"
+rust-version = "1.91"
 license = "FSL-1.1-ALv2"
 authors = ["adi0x90", "Attify"]
 readme = "README.md"

@@ -4,7 +4,7 @@ Follow [CONTRIBUTING.md](CONTRIBUTING.md) for setup and verification.
 
 ## Rust workspace
 
-Workspace crates use Rust 2024, Cargo resolver 3, and a minimum compiler version of Rust 1.90.
+Workspace crates use Rust 2024, Cargo resolver 3, and a minimum compiler version of Rust 1.91.
 Keep dependency upgrades separate from edition changes.
 `rustfmt.toml` retains the existing formatting style so edition changes do not reformat unrelated code.
 Use `tests/support/subprocess.rs` for tests that need a custom environment or working directory; configure the child command instead of mutating the test process.

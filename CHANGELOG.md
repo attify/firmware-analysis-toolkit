@@ -6,6 +6,12 @@
 
 - `inspect bmc` reports raw flash layout, FIT authentication metadata, located BMC markers, and CRC-validated U-Boot environments with text, JSON, and SARIF output.
 
+### Changed
+
+- Replaced Binwalk with binwalk-ng 4.0.0 in the source installer, including upgrades of existing installations.
+- Added automatic installation of Sasquatch and lzop for SquashFS and LZO extraction.
+- Raised the minimum supported Rust version to 1.91.
+
 ### Fixed
 
 - Native JFFS2 extraction reconstructs fragmented and versioned files before decoding embedded gzip streams, preserving CRC checks and per-artifact failures.
