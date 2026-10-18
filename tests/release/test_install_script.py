@@ -62,15 +62,17 @@ class InstallScriptTests(unittest.TestCase):
             self.fake_bin / "rustc",
             """
             #!/usr/bin/env sh
-            printf 'rustc 1.90.0 (test 1970-01-01)\\n'
+            printf 'rustc 1.91.1 (test 1970-01-01)\\n'
             """,
         )
         fake_fat = textwrap.dedent(
             f"""\
             #!{sys.executable}
             import os
+            import json
             from pathlib import Path
             import shutil
+            import subprocess
             import sys
 
             args = sys.argv[1:]
@@ -97,9 +99,11 @@ class InstallScriptTests(unittest.TestCase):
                     raise SystemExit(1)
                 print("doctor ready")
                 raise SystemExit(0)
-            if len(args) == 2 and args[0] == "extract":
+            if args and args[0] == "extract":
                 project = Path.cwd() / ".fat-projects" / "synthetic-extraction-smoke"
-                extraction = project / "work" / "extractions" / "binwalk" / "etc"
+                engine = os.environ.get("FAKE_SMOKE_ENGINE", "binwalk")
+                version = os.environ.get("FAKE_SMOKE_VERSION") or subprocess.check_output(["binwalk", "--version"], text=True).strip()
+                extraction = project / "work" / "extractions" / engine / "etc"
                 extraction.mkdir(parents=True, exist_ok=True)
                 (extraction / "synthetic-fat-extraction-marker.txt").write_text(
                     "FAT synthetic extraction smoke test passed\\n", encoding="utf-8"
@@ -108,7 +112,8 @@ class InstallScriptTests(unittest.TestCase):
                     "binwalk extracted synthetic ZIP\\n", encoding="utf-8"
                 )
                 (project / "work" / "extraction-manifest.json").write_text(
-                    '{{"rootfs_path": null, "kernel_paths": [], "file_count": 1}}\\n',
+                    json.dumps(dict(rootfs_path=None, kernel_paths=[], file_count=1,
+                                    engine=engine, engine_version=version)),
                     encoding="utf-8",
                 )
                 print("synthetic extraction complete")
@@ -136,10 +141,12 @@ class InstallScriptTests(unittest.TestCase):
             root = Path(args[args.index("--root") + 1])
             binary_dir = root / "bin"
             binary_dir.mkdir(parents=True, exist_ok=True)
-            if "binwalk" in args:
+            if args[1] in ("binwalk", "binwalk-ng"):
                 binary = binary_dir / "binwalk"
+                version = args[args.index("--version") + 1].lstrip("=")
+                provider = os.environ.get("FAKE_INSTALLED_PROVIDER", args[1])
                 binary.write_text(
-                    "#!/usr/bin/env sh\\nprintf 'binwalk 3.1.0\\\\n'\\n",
+                    "#!/usr/bin/env sh\\nprintf '" + provider + " " + version + "\\\\n'\\n",
                     encoding="utf-8",
                 )
             else:
@@ -160,6 +167,44 @@ class InstallScriptTests(unittest.TestCase):
                 "FAKE_INSTALL_LOG": str(self.log),
             }
         )
+        write_executable(
+            self.fake_bin / "python3",
+            f"""
+            #!{sys.executable}
+            import os
+            from pathlib import Path
+            import sys
+            if len(sys.argv) > 1 and sys.argv[1].endswith("install-sasquatch.py"):
+                with Path(os.environ["FAKE_INSTALL_LOG"]).open("a") as output:
+                    output.write("sasquatch-install " + " ".join(sys.argv[2:]) + "\\n")
+                prefix = Path(sys.argv[sys.argv.index("--prefix") + 1])
+                (prefix / "bin").mkdir(parents=True, exist_ok=True)
+                for name in ("sasquatch", "sasquatch-v4be"):
+                    binary = prefix / "bin" / name
+                    binary.write_text("#!/bin/sh\\nexit 0\\n")
+                    binary.chmod(0o755)
+                raise SystemExit(0)
+            os.execv({sys.executable!r}, [{sys.executable!r}, *sys.argv[1:]])
+            """,
+        )
+        self.environment["FAT_INSTALL_PYTHON"] = str(self.fake_bin / "python3")
+        write_executable(self.fake_bin / "lzop", f"""
+            #!{sys.executable}
+            from pathlib import Path
+            import sys
+            if sys.argv[1] == "--version":
+                print("lzop 1.04")
+            elif sys.argv[1] == "-dc":
+                sys.stdout.write(Path(sys.argv[2]).read_text())
+            else:
+                Path(sys.argv[2]).write_bytes(Path(sys.argv[3]).read_bytes())
+            """)
+        write_executable(self.fake_bin / "mksquashfs", f"""
+            #!{sys.executable}
+            from pathlib import Path
+            import sys
+            Path(sys.argv[2]).write_bytes(b"test squashfs")
+            """)
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
@@ -211,8 +256,8 @@ class InstallScriptTests(unittest.TestCase):
                 expected = ["sudo pacman -S --needed base-devel"]
                 if profile == "extraction":
                     expected.append(
-                        "sudo pacman -S --needed fontconfig freetype2 "
-                        "e2fsprogs p7zip squashfs-tools"
+                        "sudo pacman -S --needed pkgconf zlib xz lzo lz4 zstd "
+                        "e2fsprogs p7zip squashfs-tools lzop"
                     )
                 self.assertEqual(packages, expected)
 
@@ -232,7 +277,7 @@ class InstallScriptTests(unittest.TestCase):
                 if supported:
                     self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                     self.assertIn("sudo pacman -S --needed base-devel", result.stdout)
-                    self.assertIn("e2fsprogs p7zip squashfs-tools", result.stdout)
+                    self.assertIn("e2fsprogs p7zip squashfs-tools lzop", result.stdout)
                 else:
                     self.assertNotEqual(result.returncode, 0)
                     self.assertIn("unsupported OS", result.stderr)
@@ -242,24 +287,23 @@ class InstallScriptTests(unittest.TestCase):
         recipes = {
             "fedora": [
                 "sudo dnf install -y gcc make",
-                "sudo dnf install -y gcc-c++ pkgconf-pkg-config fontconfig-devel "
-                "freetype-devel e2fsprogs 7zip lz4 zstd squashfs-tools util-linux-script",
+                "sudo dnf install -y gcc-c++ pkgconf-pkg-config zlib-devel xz-devel lzo-devel lz4-devel libzstd-devel "
+                "e2fsprogs 7zip lz4 zstd squashfs-tools util-linux-script lzop",
             ],
             "rhel": [
                 "sudo dnf install -y gcc make",
-                "sudo dnf install -y gcc-c++ pkgconf-pkg-config fontconfig-devel "
-                "freetype-devel e2fsprogs p7zip p7zip-plugins squashfs-tools util-linux-script",
+                "sudo dnf install -y gcc-c++ pkgconf-pkg-config zlib-devel xz-devel lzo-devel lz4-devel libzstd-devel "
+                "e2fsprogs p7zip p7zip-plugins squashfs-tools util-linux-script lzop",
             ],
             "ubuntu": [
                 "sudo apt-get update",
                 "sudo apt-get install -y build-essential",
                 "sudo apt-get update",
-                "sudo apt-get install -y g++ pkg-config libfontconfig1-dev "
-                "libfreetype6-dev e2fsprogs p7zip-full squashfs-tools",
+                "sudo apt-get install -y pkg-config zlib1g-dev liblzma-dev liblzo2-dev liblz4-dev libzstd-dev e2fsprogs p7zip-full squashfs-tools lzop",
             ],
             "arch": [
                 "sudo pacman -S --needed base-devel",
-                "sudo pacman -S --needed fontconfig freetype2 e2fsprogs p7zip squashfs-tools",
+                "sudo pacman -S --needed pkgconf zlib xz lzo lz4 zstd e2fsprogs p7zip squashfs-tools lzop",
             ],
         }
         recipes["centos"] = recipes["rhel"]
@@ -349,11 +393,144 @@ class InstallScriptTests(unittest.TestCase):
 
         log = self.log.read_text(encoding="utf-8")
         self.assertIn("cargo test --workspace --locked --jobs 2", log)
-        self.assertEqual(log.count("cargo install binwalk"), 1)
-        self.assertIn("--version 3.1.0", log)
+        self.assertEqual(log.count("cargo install binwalk-ng --version =4.0.0 "), 1)
         self.assertEqual(log.count("fat data install"), 1)
         self.assertIn("fat doctor --strict", log)
-        self.assertIn("fat extract", log)
+        self.assertIn("--extractor binwalk", log)
+
+    def existing_binwalk(self, directory: Path, version: str) -> Path:
+        directory.mkdir(parents=True, exist_ok=True)
+        binary = directory / "binwalk"
+        write_executable(binary, f"#!/bin/sh\nprintf '{version}\\n'\n")
+        return binary
+
+    def test_replaces_old_provider_in_prefix(self) -> None:
+        prefix = self.root / "upgrade"
+        binary = self.existing_binwalk(prefix / "bin", "binwalk 3.1.0")
+        result = self.run_installer("--prefix", str(prefix))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(subprocess.check_output([binary, "--version"], text=True).strip(), "binwalk-ng 4.0.0")
+        self.assertIn("Replacing", result.stdout)
+
+    def test_external_provider_does_not_prevent_pinned_install(self) -> None:
+        old = self.existing_binwalk(self.fake_bin, "binwalk 3.1.0")
+        original = old.read_bytes()
+        prefix = self.root / "new-prefix"
+        result = self.run_installer("--prefix", str(prefix))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(old.read_bytes(), original)
+        self.assertTrue((prefix / "bin/binwalk").exists())
+        self.assertIn("cargo install binwalk-ng --version =4.0.0 ", self.log.read_text())
+        self.assertIn("first on PATH", result.stdout)
+
+    def test_existing_pin_is_reused(self) -> None:
+        prefix = self.root / "pinned-prefix"
+        self.existing_binwalk(prefix / "bin", "binwalk-ng 4.0.0")
+        result = self.run_installer("--prefix", str(prefix))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("cargo install binwalk", self.log.read_text())
+
+    def test_legacy_version_override_does_not_change_the_pin(self) -> None:
+        self.environment["FAT_INSTALL_BINWALK_VERSION"] = "3.1.0"
+        result = self.run_installer("--prefix", str(self.root / "legacy-override"))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("cargo install binwalk-ng --version =4.0.0 ", self.log.read_text())
+
+    def test_extraction_installs_both_sasquatch_helpers_in_prefix(self) -> None:
+        prefix = self.root / "helper prefix"
+        result = self.run_installer("--prefix", str(prefix), "--jobs", "2")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for name in ("sasquatch", "sasquatch-v4be"):
+            self.assertTrue((prefix / "bin" / name).is_file())
+        self.assertIn(f"sasquatch-install --prefix {prefix} --jobs 2", self.log.read_text())
+
+    def test_extraction_requires_lzop_before_building(self) -> None:
+        write_executable(self.fake_bin / "lzop", "#!/bin/sh\nexit 1\n")
+        result = self.run_installer("--prefix", str(self.root / "missing-helper"))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("lzop", result.stderr)
+        self.assertIn("--install-system-deps", result.stderr)
+        self.assertFalse(self.log.exists())
+
+    def test_removed_provider_opt_out_is_rejected_before_installing(self) -> None:
+        self.existing_binwalk(self.fake_bin, "binwalk 3.1.0")
+        for arguments in ([], ["--dry-run"]):
+            with self.subTest(arguments=arguments):
+                result = self.run_installer("--keep-existing-binwalk", *arguments)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("unknown option", result.stderr)
+                self.assertFalse(self.log.exists())
+
+    def test_does_not_overwrite_symlink_to_another_installation(self) -> None:
+        external = self.existing_binwalk(self.fake_bin, "binwalk 3.1.0")
+        original = external.read_bytes()
+        prefix = self.root / "linked-prefix"
+        (prefix / "bin").mkdir(parents=True)
+        (prefix / "bin/binwalk").symlink_to(external)
+        result = self.run_installer("--prefix", str(prefix))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("symlink", result.stderr)
+        self.assertIn("different --prefix", result.stderr)
+        self.assertEqual(external.read_bytes(), original)
+        self.assertFalse(self.log.exists())
+
+    def test_empty_prefix_version_is_replaced(self) -> None:
+        prefix = self.root / "empty-version-prefix"
+        (prefix / "bin").mkdir(parents=True)
+        write_executable(prefix / "bin/binwalk", "#!/bin/sh\nexit 0\n")
+        result = self.run_installer("--prefix", str(prefix))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("cargo install binwalk-ng --version =4.0.0 ", self.log.read_text())
+
+    def test_hanging_prefix_version_is_replaced(self) -> None:
+        prefix = self.root / "hanging-version-prefix"
+        (prefix / "bin").mkdir(parents=True)
+        write_executable(
+            prefix / "bin/binwalk",
+            f"#!{sys.executable}\nimport time\ntime.sleep(60)\n",
+        )
+        result = self.run_installer("--prefix", str(prefix))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("cargo install binwalk-ng --version =4.0.0 ", self.log.read_text())
+
+    def test_wrong_installed_provider_fails_verification(self) -> None:
+        self.environment["FAKE_INSTALLED_PROVIDER"] = "binwalk"
+        result = self.run_installer("--prefix", str(self.root / "wrong-provider"))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("expected 'binwalk-ng 4.0.0'", result.stderr)
+
+    def test_smoke_rejects_recovery_from_another_engine(self) -> None:
+        self.environment["FAKE_SMOKE_ENGINE"] = "unblob"
+        result = self.run_installer("--prefix", str(self.root / "wrong-engine"))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("expected binwalk", result.stderr)
+
+    def test_smoke_rejects_another_provider_version(self) -> None:
+        self.environment["FAKE_SMOKE_VERSION"] = "binwalk 3.1.0"
+        result = self.run_installer("--prefix", str(self.root / "wrong-version"))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("version mismatch", result.stderr)
+
+    def test_rust_190_fails_before_installing_either_profile(self) -> None:
+        write_executable(self.fake_bin / "rustc", "#!/bin/sh\nprintf 'rustc 1.90.0\\n'\n")
+        for profile in ("core", "extraction"):
+            result = self.run_installer("--profile", profile, "--prefix", str(self.root / "old-rust"))
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("Rust 1.91 or newer is required", result.stderr)
+            self.assertFalse(self.log.exists())
+
+    def test_core_accepts_rust_191(self) -> None:
+        write_executable(self.fake_bin / "rustc", "#!/bin/sh\nprintf 'rustc 1.91.0\\n'\n")
+        result = self.run_installer("--profile", "core", "--prefix", str(self.root / "core-191"))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_broken_prefix_provider_is_replaced(self) -> None:
+        prefix = self.root / "broken-prefix"
+        (prefix / "bin").mkdir(parents=True)
+        write_executable(prefix / "bin/binwalk", "#!/bin/sh\nexit 1\n")
+        result = self.run_installer("--prefix", str(prefix))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("cargo install binwalk-ng --version =4.0.0 ", self.log.read_text())
 
     def test_core_profile_does_not_install_binwalk(self) -> None:
         prefix = self.root / "core-prefix"
@@ -367,8 +544,9 @@ class InstallScriptTests(unittest.TestCase):
         self.assertNotIn("cargo install binwalk", log)
         self.assertIn("fat doctor\n", log)
         self.assertNotIn("fat doctor --strict", log)
+        self.assertNotIn("sasquatch-install", log)
 
-    def test_extraction_profile_fails_before_build_without_binwalk_native_deps(self) -> None:
+    def test_extraction_does_not_require_fontconfig_or_freetype(self) -> None:
         write_executable(
             self.fake_bin / "pkg-config",
             """
@@ -380,9 +558,7 @@ class InstallScriptTests(unittest.TestCase):
         result = self.run_installer(
             "--profile", "extraction", "--prefix", str(prefix), "--jobs", "1"
         )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("Binwalk needs Fontconfig and FreeType", result.stderr)
-        self.assertFalse(self.log.exists(), "Cargo must not start before preflight passes")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_refuses_filesystem_root_as_prefix(self) -> None:
         result = self.run_installer("--prefix", "/", "--dry-run")
@@ -396,11 +572,14 @@ class InstallScriptTests(unittest.TestCase):
         marker.write_text("existing data")
         self.environment["TMPDIR"] = str(self.root)
         prefix = self.root / "dry-prefix"
+        binary = self.existing_binwalk(prefix / "bin", "binwalk 3.1.0")
+        original = binary.read_bytes()
         result = self.run_installer("--prefix", str(prefix), "--dry-run")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertTrue(marker.is_file(), "dry-run deleted existing data")
         self.assertEqual(marker.read_text(), "existing data")
-        self.assertFalse(prefix.exists())
+        self.assertEqual(binary.read_bytes(), original)
+        self.assertIn("install binwalk-ng --version =4.0.0", result.stdout)
         self.assertFalse(self.log.exists())
 
     def test_prefix_and_compiler_paths_with_spaces(self) -> None:
@@ -446,7 +625,7 @@ class InstallScriptTests(unittest.TestCase):
         )
         result = self.run_installer("--profile", "core")
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("Rust 1.90 or newer is required; found 1.88.0", result.stderr)
+        self.assertIn("Rust 1.91 or newer is required; found 1.88.0", result.stderr)
         self.assertFalse(self.log.exists())
 
     def test_custom_data_dir_refuses_existing_conflicting_symlink(self) -> None:

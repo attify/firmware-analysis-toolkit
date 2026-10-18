@@ -18,7 +18,9 @@ run_extraction_smoke=true
 cargo_bin="${FAT_INSTALL_CARGO:-cargo}"
 rustc_bin="${FAT_INSTALL_RUSTC:-rustc}"
 python_bin="${FAT_INSTALL_PYTHON:-python3}"
-binwalk_version="${FAT_INSTALL_BINWALK_VERSION:-3.1.0}"
+binwalk_version="4.0.0"
+binwalk_expected_version="binwalk-ng $binwalk_version"
+install_binwalk=true
 
 usage() {
   cat <<'EOF'
@@ -38,8 +40,8 @@ Options:
   --skip-extraction-smoke    Skip the synthetic Binwalk extraction check
   -h, --help                 Show this help
 
-The extraction profile ensures that `binwalk --version` succeeds and finishes
-with `fat doctor --strict`. Heavy optional integrations such as Ghidra and Joern
+The extraction profile installs pinned binwalk-ng (executable: binwalk) into
+PREFIX/bin and verifies its version and extraction. Heavy integrations such as Ghidra and Joern
 are intentionally not installed by this script.
 EOF
 }
@@ -68,6 +70,30 @@ run() {
 
 command_available() {
   command -v "$1" >/dev/null 2>&1
+}
+
+# Version probes must not leave an installation waiting indefinitely on a broken
+# executable. Keep the selected path explicit so a different PATH entry cannot
+# satisfy verification of the managed installation.
+tool_version_at() {
+  "$python_bin" -c '
+import os, signal, subprocess, sys
+try:
+    child = subprocess.Popen([sys.argv[1], "--version"], stdout=subprocess.PIPE,
+                             stderr=subprocess.DEVNULL, start_new_session=True)
+    try:
+        output, _ = child.communicate(timeout=5)
+    except subprocess.TimeoutExpired:
+        os.killpg(child.pid, signal.SIGKILL)
+        child.communicate()
+        sys.exit(1)
+    version = output.decode("utf-8", errors="replace").strip()
+    if child.returncode or not version:
+        sys.exit(1)
+    print(version)
+except OSError:
+    sys.exit(1)
+' "$1"
 }
 
 while (($#)); do
@@ -140,6 +166,8 @@ prefix_was_on_path=false
 if [[ ":$PATH:" == *":$prefix/bin:"* ]]; then
   prefix_was_on_path=true
 fi
+export PATH="$prefix/bin:$PATH"
+binwalk_path="$prefix/bin/binwalk"
 
 if [[ -z "$jobs" ]]; then
   cpu_count="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '1')"
@@ -201,30 +229,30 @@ install_build_dependencies() {
 install_extraction_dependencies() {
   if [[ "$(uname -s)" == "Darwin" ]]; then
     command_available brew || die "Homebrew is required for automatic macOS dependencies"
-    run brew install pkgconf fontconfig freetype p7zip squashfs
+    run brew install pkgconf p7zip squashfs lzop lzo lz4 xz zstd
     return
   fi
 
   case "$(linux_dependency_id)" in
     fedora)
       run sudo dnf install -y \
-        gcc-c++ pkgconf-pkg-config fontconfig-devel freetype-devel \
-        e2fsprogs 7zip lz4 zstd squashfs-tools util-linux-script
+        gcc-c++ pkgconf-pkg-config zlib-devel xz-devel lzo-devel lz4-devel libzstd-devel \
+        e2fsprogs 7zip lz4 zstd squashfs-tools util-linux-script lzop
       ;;
     rhel|centos)
       run sudo dnf install -y \
-        gcc-c++ pkgconf-pkg-config fontconfig-devel freetype-devel \
-        e2fsprogs p7zip p7zip-plugins squashfs-tools util-linux-script
+        gcc-c++ pkgconf-pkg-config zlib-devel xz-devel lzo-devel lz4-devel libzstd-devel \
+        e2fsprogs p7zip p7zip-plugins squashfs-tools util-linux-script lzop
       ;;
     ubuntu|debian)
       run sudo apt-get update
       run sudo apt-get install -y \
-        g++ pkg-config libfontconfig1-dev libfreetype6-dev \
-        e2fsprogs p7zip-full squashfs-tools
+        pkg-config zlib1g-dev liblzma-dev liblzo2-dev liblz4-dev libzstd-dev \
+        e2fsprogs p7zip-full squashfs-tools lzop
       ;;
     arch|manjaro)
       run sudo pacman -S --needed \
-        fontconfig freetype2 e2fsprogs p7zip squashfs-tools
+        pkgconf zlib xz lzo lz4 zstd e2fsprogs p7zip squashfs-tools lzop
       ;;
     *)
       say "Skipping optional extraction utilities on unsupported OS ${ID:-unknown}."
@@ -272,20 +300,14 @@ if os.path.realpath(link) != os.path.realpath(data) and os.path.lexists(link):
     die "a C compiler is required; rerun with --install-system-deps or install gcc/clang"
   fi
 
-  existing_binwalk=""
-  if command_available binwalk && binwalk --version >/dev/null 2>&1; then
-    existing_binwalk="$(command -v binwalk)"
-  elif [[ -x "$prefix/bin/binwalk" ]] \
-    && "$prefix/bin/binwalk" --version >/dev/null 2>&1; then
-    existing_binwalk="$prefix/bin/binwalk"
-  fi
-  if [[ "$profile" == "extraction" && -z "$existing_binwalk" ]]; then
-    command_available c++ \
-      || die "Binwalk needs a C++ compiler; rerun with --install-system-deps"
-    command_available pkg-config \
-      || die "Binwalk needs pkg-config; rerun with --install-system-deps"
-    pkg-config --exists fontconfig freetype2 \
-      || die "Binwalk needs Fontconfig and FreeType development files; rerun with --install-system-deps"
+  if [[ "$profile" == "extraction" ]]; then
+    if [[ "$(tool_version_at "$binwalk_path" || true)" == "$binwalk_expected_version" ]]; then
+      install_binwalk=false
+    elif [[ -L "$binwalk_path" ]]; then
+      die "$binwalk_path is a symlink; choose a different --prefix to preserve its target"
+    fi
+    tool_version_at lzop >/dev/null \
+      || die "lzop is missing or unusable; rerun with --install-system-deps"
   fi
 fi
 
@@ -305,6 +327,11 @@ run_cargo_install() {
     run "$@"
   fi
 }
+
+if [[ "$profile" == "extraction" ]]; then
+  say "Installing Sasquatch extraction helpers"
+  run "$python_bin" "$repo_root/scripts/install-sasquatch.py" --prefix "$prefix" --jobs "$jobs"
+fi
 
 say "Installing FAT $release_version into $prefix"
 run_cargo_install "$cargo_bin" install \
@@ -356,26 +383,32 @@ if os.path.realpath(link) != os.path.realpath(data):
 ' "$data_link" "$data_dir"
 fi
 
-export PATH="$prefix/bin:$PATH"
 if [[ "$profile" == "extraction" ]]; then
-  if ! command_available binwalk || ! binwalk --version >/dev/null 2>&1; then
-    say "Installing Binwalk into $prefix"
-    run_cargo_install "$cargo_bin" install binwalk \
-      --version "$binwalk_version" \
+  if [[ "$install_binwalk" == true ]]; then
+    if [[ -e "$binwalk_path" ]]; then
+      say "Replacing $binwalk_path with $binwalk_expected_version"
+    else
+      say "Installing $binwalk_expected_version into $prefix"
+    fi
+    run_cargo_install "$cargo_bin" install binwalk-ng \
+      --version "=$binwalk_version" \
       --root "$prefix" \
       --locked \
       --force \
       --jobs "$jobs"
   else
-    say "Using existing Binwalk at $(command -v binwalk)"
+    say "Using $binwalk_expected_version at $binwalk_path"
   fi
   if [[ "$dry_run" == false ]]; then
-    command_available binwalk || die "Binwalk installation completed but binwalk is not on PATH"
-    binwalk --version >/dev/null || die "Binwalk was found but its version probe failed"
+    actual_binwalk_version="$(tool_version_at "$binwalk_path")" \
+      || die "Binwalk version probe failed at $binwalk_path"
+    [[ "$actual_binwalk_version" == "$binwalk_expected_version" ]] \
+      || die "Binwalk version mismatch at $binwalk_path: expected '$binwalk_expected_version', got '$actual_binwalk_version'"
   fi
   if [[ "$run_extraction_smoke" == true ]]; then
-    say "Running synthetic Binwalk extraction smoke test"
-    run "$python_bin" "$repo_root/scripts/smoke-test-extraction.py" --fat "$fat_bin"
+    say "Verifying Binwalk ZIP/SquashFS extraction and LZO decompression"
+    run "$python_bin" "$repo_root/scripts/smoke-test-extraction.py" --fat "$fat_bin" \
+      --expected-binwalk-version "$binwalk_expected_version" --format-helpers
   fi
 fi
 
@@ -391,6 +424,12 @@ fi
 say "FAT installation complete"
 printf 'Binary: %s\n' "$fat_bin"
 printf 'Runtime data: %s\n' "$data_dir"
-if [[ "$prefix_was_on_path" == false ]]; then
-  printf 'Add this directory to PATH: %s/bin\n' "$prefix"
+if [[ "$profile" == "extraction" ]]; then
+  printf 'Binwalk: %s (%s)\n' "$binwalk_path" "$binwalk_expected_version"
+fi
+if [[ "$profile" == "extraction" || "$prefix_was_on_path" == false ]]; then
+  printf 'Put this installation first on PATH in your shell:\n'
+  # Expand the existing PATH in the user's shell, not in this installer.
+  # shellcheck disable=SC2016
+  printf '  export PATH=%q:"$PATH"\n' "$prefix/bin"
 fi

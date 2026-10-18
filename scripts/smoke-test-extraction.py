@@ -34,9 +34,8 @@ def run(command: list[str], cwd: Path, timeout: int = 120) -> subprocess.Complet
 
 
 def build_synthetic_firmware(path: Path) -> None:
-    # Binwalk sees a ZIP member after a non-archive firmware-like prefix. FAT's
-    # native filesystem scanner does not handle ZIP, so successful recovery
-    # proves the external extraction path executed.
+    # Exercise Binwalk with a ZIP member after a firmware-like prefix. Explicit
+    # provider selection below prevents another engine from masking a failure.
     path.write_bytes(b"FAT-SYNTHETIC-FIRMWARE\0" + bytes(range(32)))
     with zipfile.ZipFile(path, "a", compression=zipfile.ZIP_DEFLATED) as archive:
         info = zipfile.ZipInfo(f"etc/{MARKER_NAME}", date_time=(1980, 1, 1, 0, 0, 0))
@@ -52,7 +51,7 @@ def locate_project(work_dir: Path) -> Path:
     return projects[0]
 
 
-def verify_extraction(project: Path) -> None:
+def verify_extraction(project: Path, expected_version: str | None = None) -> None:
     manifest_path = project / "work" / "extraction-manifest.json"
     if not manifest_path.is_file():
         raise SystemExit(f"extraction manifest is missing: {manifest_path}")
@@ -60,6 +59,13 @@ def verify_extraction(project: Path) -> None:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         raise SystemExit(f"invalid extraction manifest: {error}") from error
+    if manifest.get("engine") != "binwalk":
+        raise SystemExit(f"expected binwalk recovery, got {manifest.get('engine')!r}")
+    if expected_version is not None and manifest.get("engine_version") != expected_version:
+        raise SystemExit(
+            f"Binwalk version mismatch: expected {expected_version!r}, "
+            f"got {manifest.get('engine_version')!r}"
+        )
     file_count = manifest.get("file_count")
     if not isinstance(file_count, int) or file_count < 1:
         raise SystemExit("extraction manifest contains no recovered artifacts")
@@ -71,7 +77,7 @@ def verify_extraction(project: Path) -> None:
     if "skipped binwalk" in log_text.lower():
         raise SystemExit("FAT skipped Binwalk during the extraction smoke test")
 
-    extraction_root = project / "work" / "extractions"
+    extraction_root = project / "work" / "extractions" / "binwalk"
     markers = list(extraction_root.rglob(MARKER_NAME))
     if len(markers) != 1:
         raise SystemExit(f"expected one recovered marker, found {len(markers)}")
@@ -79,9 +85,32 @@ def verify_extraction(project: Path) -> None:
         raise SystemExit("recovered marker contents do not match the synthetic firmware")
 
 
+def verify_format_helpers(fat: Path, work_dir: Path, expected_version: str | None) -> None:
+    probe = work_dir / "format-helpers"
+    source = probe / "source" / "etc"
+    source.mkdir(parents=True)
+    marker = source / MARKER_NAME
+    marker.write_text(MARKER_TEXT)
+    compressed = probe / "marker.lzo"
+    run(["lzop", "-o", str(compressed), str(marker)], cwd=probe)
+    if run(["lzop", "-dc", str(compressed)], cwd=probe).stdout != MARKER_TEXT:
+        raise SystemExit("LZO round-trip contents do not match")
+    firmware = probe / "helper-smoke.squashfs"
+    run([
+        "mksquashfs", str(source.parent), str(firmware), "-comp", "xz",
+        "-noappend", "-no-progress", "-processors", "1",
+    ], cwd=probe)
+    run([str(fat), "extract", str(firmware), "--extractor", "binwalk"], cwd=probe)
+    verify_extraction(locate_project(probe), expected_version)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--fat", type=Path, required=True, help="installed FAT executable")
+    parser.add_argument(
+        "--expected-binwalk-version", help="require this exact provider version in the manifest"
+    )
+    parser.add_argument("--format-helpers", action="store_true", help="also verify Sasquatch and lzop")
     parser.add_argument(
         "--work-dir",
         type=Path,
@@ -106,9 +135,11 @@ def main() -> int:
         firmware = work_dir / FIRMWARE_NAME
         build_synthetic_firmware(firmware)
         run([str(fat), "doctor", "--strict"], cwd=work_dir)
-        run([str(fat), "extract", str(firmware)], cwd=work_dir)
+        run([str(fat), "extract", str(firmware), "--extractor", "binwalk"], cwd=work_dir)
         project = locate_project(work_dir)
-        verify_extraction(project)
+        verify_extraction(project, args.expected_binwalk_version)
+        if args.format_helpers:
+            verify_format_helpers(fat, work_dir, args.expected_binwalk_version)
         print(f"verified synthetic Binwalk extraction with {fat}")
         return 0
     finally:
