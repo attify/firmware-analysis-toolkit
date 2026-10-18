@@ -6317,7 +6317,24 @@ fn render_bootloader_snapshot(
         snapshot.version_hint.as_deref().unwrap_or("unknown")
     );
 
-    let _ = writeln!(&mut output, "env variables:");
+    if !snapshot.raw_env_hints.is_empty() {
+        let _ = writeln!(
+            &mut output,
+            "raw bootloader assignment hints (CRC not checked):"
+        );
+        for hint in &snapshot.raw_env_hints {
+            let _ = writeln!(&mut output, "  {}={}", hint.key, hint.value);
+        }
+        let _ = writeln!(
+            &mut output,
+            "  Check stored environments with: fat inspect bmc --file <firmware>"
+        );
+    }
+
+    let _ = writeln!(
+        &mut output,
+        "imported/legacy environment values (CRC not checked):"
+    );
     if snapshot.env_variables.is_empty() {
         let _ = writeln!(&mut output, "  none");
     } else {
@@ -6331,7 +6348,10 @@ fn render_bootloader_snapshot(
     }
 
     let risky_values = risky_env_variables(snapshot);
-    let _ = writeln!(&mut output, "risky values:");
+    let _ = writeln!(
+        &mut output,
+        "environment values to review (CRC not checked):"
+    );
     if risky_values.is_empty() {
         let _ = writeln!(&mut output, "  none");
     } else {

@@ -14,7 +14,7 @@ recovery_mode=0
         .flow_hints
         .iter()
         .any(|hint| hint.value == "bootdelay=0"));
-    assert!(snapshot.env_variables.iter().any(|v| v.key == "sig_check"));
+    assert!(snapshot.raw_env_hints.iter().any(|v| v.key == "sig_check"));
     assert!(
         !snapshot.findings.iter().any(|f| f == "BOOT-SIG-BYPASS"),
         "truthy sig_check must not be treated as a bypass"
@@ -22,10 +22,13 @@ recovery_mode=0
 }
 
 #[test]
-fn bootloader_analyzer_emits_bypass_for_disabled_sig_check() {
+fn bootloader_analyzer_keeps_disabled_sig_check_as_a_raw_hint() {
     let snapshot = fat_analyze::bootloader::analyze_text("sig_check=no\n");
 
-    assert!(snapshot.findings.iter().any(|f| f == "BOOT-SIG-BYPASS"));
+    assert!(snapshot.findings.is_empty());
+    assert!(snapshot.env_variables.is_empty());
+    assert_eq!(snapshot.raw_env_hints[0].key, "sig_check");
+    assert_eq!(snapshot.raw_env_hints[0].value, "no");
 }
 
 #[test]
@@ -41,10 +44,10 @@ verify=yes
 
     let snapshot = fat_analyze::bootloader::analyze_text(input);
 
-    assert!(snapshot.env_variables.iter().any(|v| v.key == "bootdelay"));
-    assert!(snapshot.env_variables.iter().any(|v| v.key == "sig_check"));
-    assert!(!snapshot.env_variables.iter().any(|v| v.key == "*"));
-    assert!(!snapshot.env_variables.iter().any(|v| v.key == "-"));
+    assert!(snapshot.raw_env_hints.iter().any(|v| v.key == "bootdelay"));
+    assert!(snapshot.raw_env_hints.iter().any(|v| v.key == "sig_check"));
+    assert!(!snapshot.raw_env_hints.iter().any(|v| v.key == "*"));
+    assert!(!snapshot.raw_env_hints.iter().any(|v| v.key == "-"));
 }
 
 #[test]

@@ -141,7 +141,6 @@ pub fn extract(
     let mut report = PipelineReport::default();
     let mut remaining = options.limits;
     let mut cramfs_count = 0;
-    let mut gzip_count = 0;
     while let Some(item) = queue.pop_front() {
         if report.artifacts.len() >= options.max_artifacts {
             report.truncated = true;
@@ -232,14 +231,6 @@ pub fn extract(
                         "cramfs-root".into()
                     } else {
                         format!("cramfs-root-{cramfs_count}")
-                    })
-                }
-                Format::Gzip => {
-                    gzip_count += 1;
-                    destination.join(if gzip_count == 1 {
-                        "kernel".into()
-                    } else {
-                        format!("kernel-{gzip_count}")
                     })
                 }
                 _ => destination.join(format!("{id:04}-{}", format.label())),

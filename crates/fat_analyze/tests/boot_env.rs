@@ -107,3 +107,38 @@ fn search_budget_is_explicit_and_erased_flash_has_no_environment() {
     assert!(result.search_limited);
     assert!(result.environments.is_empty());
 }
+
+#[test]
+fn raw_assignments_do_not_become_environment_or_policy_evidence() {
+    let text = "U-Boot 2024.01\nbootcmd=bootm 0x80000\nbootdelay=0\nverify=no\nsig_check=%s\nrecovery_mode=0\nrollback_ctr=0\n";
+    let raw = fat_analyze::bootloader::analyze_text(text);
+    assert!(raw.env_variables.is_empty());
+    assert!(raw.findings.is_empty());
+    let json = serde_json::to_value(&raw).unwrap();
+    assert_eq!(json["raw_env_hints"].as_array().unwrap().len(), 6);
+
+    let valid = env_blob(4096, false, false);
+    let crc_scan = scan(&valid, &EnvScanOptions::default()).unwrap();
+    assert_eq!(crc_scan.environments.len(), 1);
+    assert!(crc_scan.environments[0].crc_valid);
+    assert_eq!(crc_scan.environments[0].variables[1].value, "no");
+    let mut invalid = valid;
+    invalid[0] ^= 1;
+    assert!(scan(&invalid, &EnvScanOptions::default())
+        .unwrap()
+        .environments
+        .is_empty());
+}
+
+#[test]
+fn raw_hints_merge_without_duplicates_and_old_snapshots_still_load() {
+    let raw = fat_analyze::bootloader::analyze_text("bootcmd=bootm 0x80000\n");
+    let merged = fat_analyze::bootloader::merge_snapshots(raw.clone(), raw);
+    assert_eq!(merged.raw_env_hints.len(), 1);
+    assert!(merged.env_variables.is_empty());
+    let mut legacy = serde_json::to_value(&merged).unwrap();
+    legacy.as_object_mut().unwrap().remove("raw_env_hints");
+    let restored: fat_core::bootloader::BootloaderSnapshot =
+        serde_json::from_value(legacy).unwrap();
+    assert!(restored.raw_env_hints.is_empty());
+}

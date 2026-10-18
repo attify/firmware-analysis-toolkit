@@ -25,7 +25,7 @@ SquashFS header, inode, codec, and cached metadata readers remain separate; new 
 Carved images and directory names alone do not establish rootfs recovery; unresolved branches must leave fallback available.
 Explicit native selection must not invoke external filesystem fallback.
 JFFS2 reconstruction validates node and data CRCs, applies inode versions and dirent deletions, and queues reconstructed regular files for recursive inspection.
-Do not treat gzip signatures inside fragmented filesystem data as contiguous streams or suppress unresolved artifacts to improve aggregate status.
+Do not treat gzip signatures inside fragmented filesystem data as contiguous streams or suppress unresolved artifacts to improve aggregate status. Gzip output directories identify the artifact and compression format, not a kernel role.
 
 ## MCU analysis and terminal reports
 
@@ -63,3 +63,5 @@ Avoid generic proof disclaimers such as "presence is not established"; use preci
 `fat_analyze::fit` interprets FIT metadata using the shared validated FDT reader in `firmware_formats`; `fat_core::fit` owns its serializable evidence. Image signatures, configuration signatures, and control-FDT key requirements remain distinct. A completely interpreted blob is required before emitting absence-based findings; signature metadata is not cryptographic verification or enforcement.
 
 `fat_analyze::boot_env` owns bounded, CRC-validated raw environment discovery. Region sizes include their headers; preserve offsets, CRC byte order, and redundant flags without selecting an active environment. `fat_analyze::bmc` assembles layout, FIT, environment and located marker evidence. `fat_cli::bmc_cmd` renders text, JSON and SARIF from the same model; presentation flags never change analysis.
+
+Raw bootloader text analysis stores assignments in `BootloaderSnapshot.raw_env_hints`; these are unvalidated strings, not boot-policy findings or emulation inputs. Keep imported/legacy `env_variables` separate from those hints and from `BootEnvScan` CRC-validated regions. Older snapshots must remain readable.

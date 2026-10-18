@@ -15,6 +15,8 @@
 
 ### Fixed
 
+- Gzip outputs use artifact-ID/format directories (for example, `0004-gzip`) instead of implying that every compressed payload is a kernel.
+- Raw bootloader assignments are reported as `raw_env_hints`, separately from imported environment values and CRC-validated BMC environments. Raw strings no longer generate boot-policy findings or seed emulation settings.
 - Native JFFS2 extraction reconstructs fragmented and versioned files before decoding embedded gzip streams, preserving CRC checks and per-artifact failures.
 
 ## [2.0.1]

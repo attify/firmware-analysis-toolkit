@@ -10,7 +10,11 @@ pub struct BootloaderSnapshot {
     pub kernel_cmdline: Option<KernelCmdline>,
     #[serde(default)]
     pub partition_map: Option<MtdPartitionMap>,
+    /// Explicitly imported or legacy values used by emulation profiles, not CRC evidence.
     pub env_variables: Vec<BootEnvVariable>,
+    /// Assignments found in raw strings; never treated as stored or active environments.
+    #[serde(default)]
+    pub raw_env_hints: Vec<BootEnvHint>,
     pub flow_hints: Vec<BootFlowHint>,
     pub secure_boot_hints: Vec<SecureBootHint>,
     #[serde(default)]
@@ -80,6 +84,12 @@ pub struct EmbeddedSignature {
     pub format: String,
     pub offset: u64,
     pub description: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct BootEnvHint {
+    pub key: String,
+    pub value: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
