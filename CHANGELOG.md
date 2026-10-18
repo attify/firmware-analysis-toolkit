@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Replaced Binwalk with binwalk-ng 4.0.0 in the source installer, including upgrades of existing installations.
+- Added automatic installation of Sasquatch and lzop for SquashFS and LZO extraction.
+- Raised the minimum supported Rust version to 1.91.
+
 ## [2.0.1]
 
 See the [release notes](release-notes/v2.0.1.md) for installation and retry instructions.

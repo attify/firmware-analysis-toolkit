@@ -105,12 +105,13 @@ Compression libraries are built from their bundled sources to avoid dependencies
 
 Pull requests build and test the archives without publishing them.
 The smoke checks extract each archive into a fresh directory, verify its checksum, run the executable, verify the bundled data, and exercise identification and MCU inspection with a synthetic input.
+The Linux and macOS jobs also run the source installer's regression tests, including pinned-provider upgrades and extraction verification.
 They also inspect native shared-library dependencies on macOS and Linux.
 The workflow stops before publication if any build or smoke check fails.
 
 `dist-workspace.toml` is the source of truth for the generated `.github/workflows/release.yml`.
 Change the configuration or reusable setup/smoke workflow, then run `dist generate`; do not hand-edit the generated workflow.
-Release builds use the compiler pinned in `rust-toolchain.toml`; the minimum supported source-build compiler remains Rust 1.90.
+Release builds use the compiler pinned in `rust-toolchain.toml`; the minimum supported source-build compiler is Rust 1.91.
 
 For a local archive build:
 
