@@ -1,0 +1,26 @@
+id: bmc-tiogapass
+kind: rehosting-pack
+version: '1'
+modified_fixture: false
+match:
+  firmware_sha256:
+  - 36395de059fcd98f316c3d4399b3110befaa176406afa00d1f84292f3933393e
+runtime:
+  substrate: system
+  bmc_boot:
+    machine: tiogapass-bmc
+    flash_offset: 0
+    flash_size: 33554432
+    source_sha256: 36395de059fcd98f316c3d4399b3110befaa176406afa00d1f84292f3933393e
+    nic_count: 2
+    management_nic: 0
+    vendor_kernel: null
+validators:
+- goal: redfish-service
+  kind: http
+  port: 443
+  path: /redfish/v1/
+caveats:
+- QEMU emulates a subset of board devices; sensor and host-interface behavior requires
+  separate validation.
+- Flash writes are ephemeral QEMU snapshot changes.

@@ -24,3 +24,5 @@ pub use repair::{decide_repair, RepairDecision};
 pub use run::EmulationRun;
 pub use session::EmulationSession;
 pub use system_launch::{launch_native_system, launch_native_system_with, SystemLaunchResult};
+
+pub mod bmc_runner;

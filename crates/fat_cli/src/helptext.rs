@@ -2391,6 +2391,9 @@ What it does:
 Examples:
   fat emulate --project ./.fat-projects/demo
   fat emulate --project ./.fat-projects/demo --substrate-policy system-first
+  fat rehost profiles list
+  fat emulate --project ./.fat-projects/romulus --pack bmc-romulus
+  fat emulate --project ./.fat-projects/asus --pack bmc-asus-bhs-1.20.02
   fat emulate --project ./.fat-projects/demo --status
   fat emulate --project ./.fat-projects/demo --stop --session-id sess-123
 
@@ -2398,6 +2401,10 @@ Tips:
   - Pair this with fat preflight first if you need backend candidate rankings and availability facts.
   - Valid substrate policies are auto, service-first, system-first, and reference-only.
   - Use --status and --stop when managing an existing session lifecycle.
+  - BMC profiles require exact source hashes and native qemu-system-arm. They allocate
+    loopback HTTPS/GDB ports and expose serial/monitor Unix sockets. Omit --port.
+  - BMC --status checks current Redfish ServiceRoot responses, not just QEMU liveness.
+  - Vendor-kernel profiles explicitly bypass the bootloader and record DTB changes.
 "#;
 
 const DIFF_AFTER: &str = r#"What it does:

@@ -1,0 +1,35 @@
+id: bmc-asus-bhs-1.20.02
+kind: rehosting-pack
+version: '1'
+modified_fixture: true
+match:
+  firmware_sha256:
+  - 20954d5d143552ba68be44902d3de17828d88d8f2eb5e86cd2a6584fd75f3a81
+runtime:
+  substrate: system
+  bmc_boot:
+    machine: ast2600-evb,fmc-model=mx66u51235f
+    flash_offset: 165
+    flash_size: 67108864
+    source_sha256: 20954d5d143552ba68be44902d3de17828d88d8f2eb5e86cd2a6584fd75f3a81
+    nic_count: 4
+    management_nic: 0
+    vendor_kernel:
+      fit_offset: 41746496
+      kernel_node: kernel@1
+      dtb_node: fdt@Z14PN.dtb
+      boot_args: root=/dev/mtdblock2 ro ip=none console=ttyS4,115200 rootfstype=squashfs
+        imagebooted=1
+      disable_nodes:
+      - /ahb/apb/hace@1e6d0000
+validators:
+- goal: redfish-service
+  kind: http
+  port: 443
+  path: /redfish/v1/
+caveats:
+- QEMU emulates a subset of board devices; sensor and host-interface behavior requires
+  separate validation.
+- Flash writes are ephemeral QEMU snapshot changes.
+- Direct vendor-kernel boot bypasses SPL/U-Boot board selection and disables the HACE
+  device-tree node. Original kernel and filesystem bytes are retained.

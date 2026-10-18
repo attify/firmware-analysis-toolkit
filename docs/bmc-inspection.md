@@ -80,3 +80,7 @@ The format and trust semantics follow [U-Boot's FIT signature documentation](htt
 ## Validation fixtures
 
 Hermetic tests synthesize FITs with hash metadata, image/configuration signatures, malformed structures, and valid/corrupt environment CRCs. Real-image validation should record the source URL, SHA256, command and tool version separately. Firmware binaries are not committed to the repository. OpenBMC TiogaPass and Romulus examples validate those image families. The [2026-10-18 OEM validation](bmc-validation-2026-10-18.md) additionally exercises Gigabyte, ASRock, and ASUS MegaRAC/SP-X firmware, Supermicro X11/X12 images, and a Lenovo XCC comparison image. Coverage is tied to the listed input hashes and features; it does not establish proprietary update-signature verification or controller boot enforcement.
+
+## Run the inspected image
+
+Supported images can use [BMC emulation profiles](bmc-emulation.md) for full-flash or explicit vendor-kernel boot, current Redfish checks, and serial/monitor/GDB debugging. Inspection findings alone do not select a board or authorize an adaptation.

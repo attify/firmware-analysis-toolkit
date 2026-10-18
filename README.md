@@ -15,7 +15,7 @@ Some of the features include classifying unknown firmware, extracts filesystems,
 
 - **Unknown blobs and directories:** containers, compressed members, high-entropy regions, MCU signals, and candidate firmware files
 - **Firmware images:** headers, update envelopes, partitions, bootloaders, and image-to-image differences
-- **BMC flash images:** FIT hash/signature metadata, OpenBMC/MegaRAC markers, CRC-valid U-Boot environments, and native JFFS2 recovery
+- **BMC flash images:** FIT hash/signature metadata, OpenBMC/MegaRAC markers, CRC-valid U-Boot environments, native JFFS2 recovery, and explicit full-flash/vendor-kernel emulation profiles
 - **Extracted Linux filesystems:** inventory, startup intent, trust-bearing binaries, crypto material, and string evidence
 - **ELF binaries:** imports, exports, handler tables, stripped-code sinks, decompilation, and source-to-sink taint
 - **Bare-metal and MCU images:** vector tables, memory maps, peripheral hints, flash-write authority, and boot handoff evidence
@@ -86,6 +86,8 @@ fat inspect bmc --file ./flash.mtd --details
 
 Both inspection workflows support `--json` for the full structured analysis report.
 BMC inspection also supports `--sarif --fail-on-warning` for CI. FIT signatures are reported as stored metadata; cryptographic validity and hardware boot enforcement are not tested.
+
+Run supported BMC services with `fat emulate --project <project> --pack bmc-romulus` or the explicit ASUS vendor-kernel profile. List profiles with `fat rehost profiles list`; see [BMC emulation](docs/bmc-emulation.md) for input hashes, adaptations, Redfish checks and debugging.
 
 Native extraction reconstructs JFFS2 files before inspecting nested compressed content. See [Inspecting BMC firmware](docs/bmc-inspection.md) for the extraction workflow, case-sensitive storage requirements, SARIF output, and environment overrides.
 
@@ -165,6 +167,7 @@ fat verify --help
 | --- | --- |
 | [INSTALL.md](INSTALL.md) | External tools and optional component setup |
 | [docs/commands.md](docs/commands.md) | Full command reference, grouped by task |
+| [docs/bmc-emulation.md](docs/bmc-emulation.md) | BMC boot profiles, Redfish readiness, debug endpoints, and new-image support |
 | [docs/bmc-inspection.md](docs/bmc-inspection.md) | Offline BMC inspection, JFFS2 extraction, output formats, and limits |
 | [docs/capabilities.md](docs/capabilities.md) | Graph export, string search, crypto, Edge AI, startup intent, rehosting packs |
 | [docs/epistemics.md](docs/epistemics.md) | How to read FAT output: what results do and do not prove |

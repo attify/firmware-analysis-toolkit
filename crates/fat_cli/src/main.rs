@@ -41,6 +41,7 @@ mod adapter_routing;
 mod android_cmd;
 mod benchmark_cmd;
 mod bmc_cmd;
+mod bmc_emulate;
 mod bootloader_handoff_cmd;
 mod bundle_reality_cmd;
 mod carve_cmd;
@@ -1073,7 +1074,8 @@ enum Command {
         #[arg(long)]
         instrument: Option<PathBuf>,
         /// Rehosting pack to apply (a YAML path or a pack id). Overrides the
-        /// QEMU machine, init repairs, validators, and caveats. See `fat rehost match`.
+        /// QEMU machine, init repairs, validators, and caveats. Embedded BMC profiles
+        /// select full-flash or explicit vendor-kernel boot; see `fat rehost profiles list`.
         #[arg(long)]
         pack: Option<String>,
         /// EXPERIMENTAL: allow FAT to automatically apply a matching rehosting pack.

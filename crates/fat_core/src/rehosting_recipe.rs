@@ -278,6 +278,8 @@ pub struct RehostingRecipe {
     /// When `None` the system runner derives the machine from the architecture.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub qemu_machine: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bmc_boot: Option<crate::bmc_boot::BmcBootConfig>,
     /// Typed TCG plugin instrumentation config. When set, the system runner
     /// appends `-plugin` args to the QEMU command line.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -331,6 +333,7 @@ impl RehostingRecipe {
             instrumentation_flags: Vec::new(),
             fidelity_caveats: Vec::new(),
             qemu_machine: None,
+            bmc_boot: None,
             instrumentation: None,
         }
     }

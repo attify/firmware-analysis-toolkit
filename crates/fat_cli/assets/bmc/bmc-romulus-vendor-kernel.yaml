@@ -1,0 +1,34 @@
+id: bmc-romulus-vendor-kernel
+kind: rehosting-pack
+version: '1'
+modified_fixture: true
+match:
+  firmware_sha256:
+  - 7d4f776b5e1728abc1624fb698149b50425dd4efd8e2df8b711046f8649c0461
+runtime:
+  substrate: system
+  bmc_boot:
+    machine: romulus-bmc
+    flash_offset: 0
+    flash_size: 33554432
+    source_sha256: 7d4f776b5e1728abc1624fb698149b50425dd4efd8e2df8b711046f8649c0461
+    nic_count: 1
+    management_nic: 0
+    vendor_kernel:
+      fit_offset: 524288
+      kernel_node: kernel@1
+      dtb_node: fdt@aspeed-bmc-opp-romulus.dtb
+      initrd_node: ramdisk@1
+      boot_args: console=ttyS4,115200n8 root=/dev/ram rw
+      disable_nodes: []
+validators:
+- goal: redfish-service
+  kind: http
+  port: 443
+  path: /redfish/v1/
+caveats:
+- QEMU emulates a subset of board devices; sensor and host-interface behavior requires
+  separate validation.
+- Flash writes are ephemeral QEMU snapshot changes.
+- Direct boot bypasses U-Boot; kernel, DTB and initramfs are original SHA-256-checked
+  FIT payloads. Boot arguments explicitly match both CRC-validated stored environments.

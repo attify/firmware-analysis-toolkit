@@ -66,6 +66,8 @@ pub struct PackRuntime {
     pub substrate: Option<String>,
     #[serde(default)]
     pub qemu_machine: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bmc_boot: Option<crate::bmc_boot::BmcBootConfig>,
     #[serde(default)]
     pub network: Option<PackNetwork>,
 }
@@ -167,6 +169,34 @@ fn validate_runtime(pack: &RehostingPack, report: &mut RehostingPackValidationRe
         return;
     };
 
+    if let Some(bmc) = &runtime.bmc_boot {
+        if let Err(message) = bmc.validate() {
+            report.error("invalid-bmc-boot", message);
+        }
+        if runtime.substrate.as_deref() != Some("system")
+            || runtime.qemu_machine.is_some()
+            || runtime.network.is_some()
+            || pack.repairs.is_some()
+            || pack.partitions.is_some()
+        {
+            report.error("conflicting-bmc-runtime", "BMC boot requires system substrate and owns machine/network/flash; generic runtime overrides are unsupported");
+        }
+        let canonical_validator = pack.validators.len() == 1
+            && pack.validators.first().is_some_and(|v| {
+                v.goal == "redfish-service"
+                    && v.kind == "http"
+                    && v.port == Some(443)
+                    && v.path.as_deref() == Some("/redfish/v1/")
+                    && v.name.is_none()
+                    && v.pattern.is_none()
+            });
+        if !canonical_validator {
+            report.error("unsupported-bmc-validator", "BMC profiles require exactly one http redfish-service validator at port 443 and /redfish/v1/; other validators are not implemented");
+        }
+        if bmc.vendor_kernel.is_some() && !pack.modified_fixture {
+            report.error("bmc-adaptation-undeclared", "vendor-kernel boot requires modified_fixture: true to declare the boot-chain bypass");
+        }
+    }
     if let Some(substrate) = runtime.substrate.as_deref() {
         if !matches!(substrate.trim(), "service" | "system" | "reference") {
             report.error(

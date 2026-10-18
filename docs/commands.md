@@ -85,3 +85,7 @@ For firmware with case-distinct names, create the project on a case-sensitive vo
 | --- | --- |
 | `graph export` | Export analysis facts as reusable JSON graph data |
 | `label scan`, `labels explain` | Build label evidence and explain why a path carries a label |
+
+## BMC emulation
+
+`fat rehost profiles list` lists embedded BMC profiles. Use `fat emulate --project <project> --pack <id-or-yaml>`, then `--status` to probe Redfish and `--stop` to terminate the owned QEMU process. `fat debug shell`, `monitor`, and `gdb` attach to the recorded serial socket, monitor socket, and debugger port. See [BMC emulation](bmc-emulation.md) for full-flash/vendor-kernel modes, image hashes and fidelity limits.

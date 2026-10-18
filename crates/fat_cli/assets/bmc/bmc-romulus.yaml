@@ -1,0 +1,26 @@
+id: bmc-romulus
+kind: rehosting-pack
+version: '1'
+modified_fixture: false
+match:
+  firmware_sha256:
+  - 7d4f776b5e1728abc1624fb698149b50425dd4efd8e2df8b711046f8649c0461
+runtime:
+  substrate: system
+  bmc_boot:
+    machine: romulus-bmc
+    flash_offset: 0
+    flash_size: 33554432
+    source_sha256: 7d4f776b5e1728abc1624fb698149b50425dd4efd8e2df8b711046f8649c0461
+    nic_count: 1
+    management_nic: 0
+    vendor_kernel: null
+validators:
+- goal: redfish-service
+  kind: http
+  port: 443
+  path: /redfish/v1/
+caveats:
+- QEMU emulates a subset of board devices; sensor and host-interface behavior requires
+  separate validation.
+- Flash writes are ephemeral QEMU snapshot changes.

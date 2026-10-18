@@ -55,3 +55,5 @@ pub fn built_in_registry() -> AnalyzerRegistry {
 pub fn built_in_engine() -> AnalysisEngine {
     AnalysisEngine::new(built_in_registry())
 }
+
+pub mod bmc_boot_assets;

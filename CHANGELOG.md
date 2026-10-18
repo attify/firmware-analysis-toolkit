@@ -4,6 +4,8 @@
 
 ### Added
 
+- Hash-pinned BMC profiles for native full-flash and vendor-kernel boot, including verified FIT kernel/DTB/initramfs assets, explicit DTB adaptations, private snapshot flash, and fresh loopback Redfish readiness observations.
+
 - `inspect bmc` reports raw flash layout, FIT authentication metadata, located BMC markers, and CRC-validated U-Boot environments with text, JSON, and SARIF output.
 
 ### Changed
@@ -14,6 +16,8 @@
 - Raised the minimum supported Rust version to 1.91.
 
 ### Fixed
+
+- Native debug commands attach to recorded Unix serial/monitor sockets; inactive runs no longer advertise historical validated surfaces as current.
 
 - Gzip outputs use artifact-ID/format directories (for example, `0004-gzip`) instead of implying that every compressed payload is a kernel.
 - Raw bootloader assignments are reported as `raw_env_hints`, separately from imported environment values and CRC-validated BMC environments. Raw strings no longer generate boot-policy findings or seed emulation settings.
