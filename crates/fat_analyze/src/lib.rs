@@ -1,12 +1,15 @@
 pub mod analyzers;
 pub mod binary;
 pub mod binary_diff;
+pub mod bmc;
+pub mod boot_env;
 pub mod bootloader;
 pub mod cert_diff;
 pub mod credential;
 pub mod edge_ai;
 pub mod engine;
 pub mod firmware_formats;
+pub mod fit;
 pub mod image_measurements;
 pub mod inventory;
 pub mod loader;

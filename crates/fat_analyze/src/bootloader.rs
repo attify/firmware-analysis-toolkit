@@ -93,8 +93,11 @@ pub fn analyze_firmware_path(path: &Path) -> std::io::Result<BootloaderSnapshot>
 
 pub fn analyze_firmware_bytes(bytes: &[u8]) -> std::io::Result<BootloaderSnapshot> {
     let native_formats = scan(bytes);
+    let mut fit = crate::fit::scan(bytes);
+    fit.diagnostics.extend(native_formats.fdt_diagnostics);
     let mut snapshot = BootloaderSnapshot {
         container_headers: parse_container_headers(bytes, native_formats.container_headers),
+        fit,
         ..Default::default()
     };
     if snapshot
@@ -306,12 +309,24 @@ pub fn merge_snapshots(
     base.compression_members.extend(overlay.compression_members);
     base.filesystem_headers.extend(overlay.filesystem_headers);
     base.embedded_signatures.extend(overlay.embedded_signatures);
+    base.fit.blobs.extend(overlay.fit.blobs);
+    base.fit.control_keys.extend(overlay.fit.control_keys);
+    base.fit.diagnostics.extend(overlay.fit.diagnostics);
     base.findings.extend(overlay.findings);
 
     finalize_snapshot(base)
 }
 
 fn finalize_snapshot(mut snapshot: BootloaderSnapshot) -> BootloaderSnapshot {
+    snapshot.fit.blobs.sort_by_key(|blob| blob.offset);
+    snapshot.fit.blobs.dedup();
+    snapshot.fit.control_keys.sort_by_key(|key| key.offset);
+    snapshot.fit.control_keys.dedup();
+    snapshot
+        .fit
+        .diagnostics
+        .sort_by_key(|diagnostic| diagnostic.offset);
+    snapshot.fit.diagnostics.dedup();
     snapshot.findings.sort();
     snapshot.findings.dedup();
     snapshot.flow_hints.sort_by(|a, b| a.value.cmp(&b.value));

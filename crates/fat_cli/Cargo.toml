@@ -506,3 +506,7 @@ path = "../../tests/integration/test_taint_cross_state_profile_cli.rs"
 
 [lints]
 workspace = true
+
+[[test]]
+name = "test_inspect_bmc_cli"
+path = "../../tests/integration/test_inspect_bmc_cli.rs"

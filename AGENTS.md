@@ -24,6 +24,8 @@ Use `cargo-dist` for native GitHub platform builds and archive smoke tests; publ
 SquashFS header, inode, codec, and cached metadata readers remain separate; new formats reuse the output contract.
 Carved images and directory names alone do not establish rootfs recovery; unresolved branches must leave fallback available.
 Explicit native selection must not invoke external filesystem fallback.
+JFFS2 reconstruction validates node and data CRCs, applies inode versions and dirent deletions, and queues reconstructed regular files for recursive inspection.
+Do not treat gzip signatures inside fragmented filesystem data as contiguous streams or suppress unresolved artifacts to improve aggregate status.
 
 ## MCU analysis and terminal reports
 
@@ -55,3 +57,9 @@ Summarize repeated relationships in the overview; keep raw pointers, instruction
 Presentation flags do not change analysis or JSON.
 Descriptions state concrete observations and applicability conditions directly.
 Avoid generic proof disclaimers such as "presence is not established"; use precise labels and fields to distinguish static accesses, constants, and profile matches.
+
+## BMC inspection
+
+`fat_analyze::fit` interprets FIT metadata using the shared validated FDT reader in `firmware_formats`; `fat_core::fit` owns its serializable evidence. Image signatures, configuration signatures, and control-FDT key requirements remain distinct. A completely interpreted blob is required before emitting absence-based findings; signature metadata is not cryptographic verification or enforcement.
+
+`fat_analyze::boot_env` owns bounded, CRC-validated raw environment discovery. Region sizes include their headers; preserve offsets, CRC byte order, and redundant flags without selecting an active environment. `fat_analyze::bmc` assembles layout, FIT, environment and located marker evidence. `fat_cli::bmc_cmd` renders text, JSON and SARIF from the same model; presentation flags never change analysis.

@@ -529,6 +529,7 @@ fn load_project_report(project_dir: &Path) -> DynResult<InspectionReport> {
             image_headers: snapshot.image_headers,
             compression_members: snapshot.compression_members,
             filesystem_headers: snapshot.filesystem_headers,
+            fit: snapshot.fit,
         });
     }
 
@@ -539,6 +540,7 @@ fn load_project_report(project_dir: &Path) -> DynResult<InspectionReport> {
         image_headers,
         compression_members: Vec::new(),
         filesystem_headers: Vec::new(),
+        fit: Default::default(),
     })
 }
 
@@ -556,6 +558,7 @@ fn load_file_report(firmware_path: &Path) -> DynResult<InspectionReport> {
         image_headers: snapshot.image_headers,
         compression_members: snapshot.compression_members,
         filesystem_headers: snapshot.filesystem_headers,
+        fit: snapshot.fit,
     })
 }
 

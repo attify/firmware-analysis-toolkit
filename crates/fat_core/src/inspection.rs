@@ -12,6 +12,8 @@ pub struct InspectionReport {
     pub compression_members: Vec<CompressionMember>,
     #[serde(default)]
     pub filesystem_headers: Vec<FilesystemHeader>,
+    #[serde(default)]
+    pub fit: crate::fit::FitScanReport,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]

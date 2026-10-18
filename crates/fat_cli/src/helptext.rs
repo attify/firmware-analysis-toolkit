@@ -954,6 +954,11 @@ pub fn apply(root: &mut Command) {
         }
     }
     if let Some(cmd) = root.find_subcommand_mut("inspect") {
+        if let Some(sub) = cmd.find_subcommand_mut("bmc") {
+            configure(sub, Some("Inspect raw BMC flash: layout, FIT authentication metadata, and CRC-valid environments"),
+                Some("Examples:\n  fat inspect bmc --file flash.mtd\n  fat inspect bmc --file flash.mtd --details\n  fat inspect bmc --file flash.mtd --sarif --fail-on-warning\n  fat inspect bmc --file flash.mtd --env-offset 0x60000 --env-size 0x20000\n\nSignature nodes are metadata; verification and bootloader enforcement are separate evidence.\nEnvironment sizes include their headers. JSON records scan bounds and diagnostics."), false);
+        }
+
         configure(
             cmd,
             Some("Inspect carved artifacts, binary layout, or bare-metal firmware metadata"),
