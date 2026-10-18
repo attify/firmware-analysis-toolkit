@@ -24,6 +24,8 @@ Use `cargo-dist` for native GitHub platform builds and archive smoke tests; publ
 SquashFS header, inode, codec, and cached metadata readers remain separate; new formats reuse the output contract.
 Carved images and directory names alone do not establish rootfs recovery; unresolved branches must leave fallback available.
 Explicit native selection must not invoke external filesystem fallback.
+JFFS2 reconstruction validates node and data CRCs, applies inode versions and dirent deletions, and queues reconstructed regular files for recursive inspection.
+Do not treat gzip signatures inside fragmented filesystem data as contiguous streams or suppress unresolved artifacts to improve aggregate status.
 
 ## MCU analysis and terminal reports
 

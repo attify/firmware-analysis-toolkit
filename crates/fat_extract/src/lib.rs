@@ -3,6 +3,7 @@ pub mod command;
 pub mod cramfs;
 pub mod evidence;
 pub mod extractors;
+mod jffs2;
 pub mod manifest;
 pub mod native;
 pub mod output;
