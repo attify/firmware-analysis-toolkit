@@ -2,6 +2,8 @@
 
 `fat inspect bmc` inspects a raw flash image without executing firmware or contacting a controller. It combines FAT's native layout analysis with FIT authentication metadata, located platform strings, and CRC-validated U-Boot environments.
 
+BMC inspection and native JFFS2 recovery were added after `v2.0.1`. If you have that release installed, build `master` using the [source-build instructions](../README.md#quick-start).
+
 ```sh
 fat inspect bmc --file flash.mtd
 fat inspect bmc --file flash.mtd --details
@@ -46,9 +48,16 @@ PEM headers are also markers: a private-key header generates a qualified warning
 
 SARIF 2.1.0 includes stable rule IDs, rule descriptions, the input SHA256, and binary byte locations. Default inspection exits successfully when analysis completes. `--fail-on-warning` emits the full report and then exits nonzero when any warning/error finding exists. Invalid arguments, input I/O failures, and fatal analysis errors also exit nonzero. Malformed FDT candidates remain diagnostics in a successfully completed inspection. CI policy is explicit: metadata observations are not automatically vulnerability verdicts.
 
-## Validation fixtures
+## Extracting filesystems
 
-Hermetic tests synthesize FITs with hash metadata, image/configuration signatures, malformed structures, and valid/corrupt environment CRCs. Real-image validation should record the source URL, SHA256, command and tool version separately. Firmware binaries are not committed to the repository. OpenBMC TiogaPass and Romulus examples validate those image families. The [2026-10-18 OEM validation](bmc-validation-2026-10-18.md) additionally exercises Gigabyte, ASRock, and ASUS MegaRAC/SP-X firmware, Supermicro X11/X12 images, and a Lenovo XCC comparison image. Coverage is tied to the listed input hashes and features; it does not establish proprietary update-signature verification or controller boot enforcement.
+Inspection reads the raw image; it does not extract its filesystems. Create a project on case-sensitive storage and run native extraction separately:
+
+```sh
+fat new ./flash.mtd --name bmc --projects-dir /path/to/case-sensitive/projects
+fat extract /path/to/case-sensitive/projects/bmc --extractor native --json > extraction.json
+```
+
+`--extractor native` uses only FAT's built-in extraction path. Omit it to use `auto`, which retains external fallback when native recovery is incomplete. The JSON `recovery_status` summarizes recovery; `artifacts` records individual successes, unsupported formats, and failures. A previous extraction is reused unless `--force` is supplied; `--force` overwrites existing extraction artifacts.
 
 Use a case-sensitive output filesystem for extraction: these OEM images can contain distinct names such as `libip6t_HL.so` and `libip6t_hl.so`. Inspect per-artifact extraction outcomes; successful command completion and recovered auxiliary files do not establish complete rootfs recovery. Raw identity strings also require context: the tested Supermicro X12 image contains `openbmc-linux-gcc` in a compiler string while its extracted `os-release` identifies Supermicro BMC.
 
@@ -57,3 +66,7 @@ Native extraction reconstructs JFFS2 files before scanning their contents for ne
 JFFS2 discovery joins nodes across erased gaps of at most 64 KiB. It does not infer flash partition boundaries, ECC/OOB layouts, or missing fragments. Filenames and symlink targets currently require UTF-8; xattr, summary, and other unsupported node types are reported explicitly. Larger gaps can separate a filesystem into unresolved regions. Unreachable live directory entries remain unresolved.
 
 The format and trust semantics follow [U-Boot's FIT signature documentation](https://docs.u-boot.org/en/v2024.01/usage/fit/signature.html).
+
+## Validation fixtures
+
+Hermetic tests synthesize FITs with hash metadata, image/configuration signatures, malformed structures, and valid/corrupt environment CRCs. Real-image validation should record the source URL, SHA256, command and tool version separately. Firmware binaries are not committed to the repository. OpenBMC TiogaPass and Romulus examples validate those image families. The [2026-10-18 OEM validation](bmc-validation-2026-10-18.md) additionally exercises Gigabyte, ASRock, and ASUS MegaRAC/SP-X firmware, Supermicro X11/X12 images, and a Lenovo XCC comparison image. Coverage is tied to the listed input hashes and features; it does not establish proprietary update-signature verification or controller boot enforcement.

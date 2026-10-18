@@ -15,6 +15,7 @@ Some of the features include classifying unknown firmware, extracts filesystems,
 
 - **Unknown blobs and directories:** containers, compressed members, high-entropy regions, MCU signals, and candidate firmware files
 - **Firmware images:** headers, update envelopes, partitions, bootloaders, and image-to-image differences
+- **BMC flash images:** FIT hash/signature metadata, OpenBMC/MegaRAC markers, CRC-valid U-Boot environments, and native JFFS2 recovery
 - **Extracted Linux filesystems:** inventory, startup intent, trust-bearing binaries, crypto material, and string evidence
 - **ELF binaries:** imports, exports, handler tables, stripped-code sinks, decompilation, and source-to-sink taint
 - **Bare-metal and MCU images:** vector tables, memory maps, peripheral hints, flash-write authority, and boot handoff evidence
@@ -46,10 +47,13 @@ One-Shot Installer for supported hosts:
 
 See [INSTALL.md](INSTALL.md) for installer options and optional tools.
 
+For features listed under [Unreleased](CHANGELOG.md#unreleased), use `--branch master` in the clone command above. BMC inspection and native JFFS2 recovery were added after `v2.0.1`.
+
 ## Quick Command Ref. 
 
 - Help : `fat -h`
 - Identify a firmware: `fat $firmware` or `fat identify --file $firmware`
+- Inspect BMC flash: `fat inspect bmc --file $firmware`
 - New Project : `fat new $firmware`
 - Extract file system : `fat extract $firmware`
 - Analyze : `fat analyze $firmware`
@@ -81,7 +85,9 @@ fat inspect bmc --file ./flash.mtd --details
 ```
 
 Both inspection workflows support `--json` for the full structured analysis report.
-See [Inspecting BMC firmware](docs/bmc-inspection.md) for SARIF output and environment overrides.
+BMC inspection also supports `--sarif --fail-on-warning` for CI. FIT signatures are reported as stored metadata; cryptographic validity and hardware boot enforcement are not tested.
+
+Native extraction reconstructs JFFS2 files before inspecting nested compressed content. See [Inspecting BMC firmware](docs/bmc-inspection.md) for the extraction workflow, case-sensitive storage requirements, SARIF output, and environment overrides.
 
 ### Image to Runtime
 
@@ -159,6 +165,7 @@ fat verify --help
 | --- | --- |
 | [INSTALL.md](INSTALL.md) | External tools and optional component setup |
 | [docs/commands.md](docs/commands.md) | Full command reference, grouped by task |
+| [docs/bmc-inspection.md](docs/bmc-inspection.md) | Offline BMC inspection, JFFS2 extraction, output formats, and limits |
 | [docs/capabilities.md](docs/capabilities.md) | Graph export, string search, crypto, Edge AI, startup intent, rehosting packs |
 | [docs/epistemics.md](docs/epistemics.md) | How to read FAT output: what results do and do not prove |
 | [docs/architecture.md](docs/architecture.md) | Workspace crates and extension points |

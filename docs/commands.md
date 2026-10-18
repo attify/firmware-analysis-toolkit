@@ -16,17 +16,22 @@
 
 `fat extract firmware.zip --extractor native --json` uses the built-in container and filesystem decoders. The default `auto` selection retains fallback extraction when native recovery is incomplete. `recovery_status` is `rootfs_recovered`, `files_only`, or `partial`; the `artifacts` array explains each recognized branch. `work/native-artifacts.json` also preserves native outcomes when the command cannot produce a final manifest.
 
+Native JFFS2 extraction validates CRCs and reconstructs file versions and fragments before inspecting nested gzip streams. Unsupported codecs and incomplete files remain unresolved. Explicit `--extractor native` does not invoke external fallback; see the [BMC extraction workflow](bmc-inspection.md#extracting-filesystems) for an example and supported formats.
+
 For firmware with case-distinct names, create the project on a case-sensitive volume: `fat new firmware.zip --projects-dir /path/to/case-sensitive/projects`, then extract that project. On macOS, use a case-sensitive APFS volume or disk image. Existing project and extractor-selection arguments remain available.
 
 ## Firmware structure and classification
 
 | Command | Purpose |
 | --- | --- |
-| `inspect` | Inspect headers, layout, carved artifacts, or bare-metal metadata |
+| `inspect` | Inspect headers, layout, carved artifacts, BMC flash, or bare-metal metadata |
+| `inspect bmc` | Report FIT authentication metadata, located platform markers, and CRC-valid U-Boot environments from raw flash |
 | `inspect update`, `inspect envelope` | Build update-envelope and trust-path evidence |
 | `detect-encryption`, `compare` | Measure opaque wrappers and compare envelope boundaries |
 | `diff role`, `diff firmware` | Compare binaries by role or projects across filesystem, configuration, and binary layers |
 | `bootloader` | Inspect bootloader images, environments, handoff, and sessions |
+
+`fat inspect bmc --file flash.mtd --details` expands the text report. Use `--json` or `--sarif` for structured output and `--fail-on-warning` to emit the report before returning a failing status for warning/error findings. Both `--env-offset` and `--env-size` are required for an explicit environment region. See [BMC inspection](bmc-inspection.md) for search bounds and the distinction between signature metadata and boot enforcement.
 
 ## Filesystem evidence
 
