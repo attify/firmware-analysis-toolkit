@@ -955,13 +955,27 @@ pub fn apply(root: &mut Command) {
     }
     if let Some(cmd) = root.find_subcommand_mut("inspect") {
         if let Some(sub) = cmd.find_subcommand_mut("bmc") {
-            configure(sub, Some("Inspect raw BMC flash: layout, FIT authentication metadata, and CRC-valid environments"),
-                Some("Examples:\n  fat inspect bmc --file flash.mtd\n  fat inspect bmc --file flash.mtd --details\n  fat inspect bmc --file flash.mtd --sarif --fail-on-warning\n  fat inspect bmc --file flash.mtd --env-offset 0x60000 --env-size 0x20000\n\nSignature nodes are metadata; verification and bootloader enforcement are separate evidence.\nEnvironment sizes include their headers. JSON records scan bounds and diagnostics."), false);
+            configure(
+                sub,
+                Some("Inspect raw BMC flash: layout, FIT authentication metadata, and CRC-valid environments"),
+                Some(INSPECT_BMC_AFTER),
+                false,
+            );
+            annotate_args(
+                sub,
+                &[
+                    ("file", "Raw BMC flash image to inspect (up to 512 MiB)"),
+                    (
+                        "json",
+                        "Emit the full structured analysis, including scan bounds and diagnostics",
+                    ),
+                ],
+            );
         }
 
         configure(
             cmd,
-            Some("Inspect carved artifacts, binary layout, or bare-metal firmware metadata"),
+            Some("Inspect carved artifacts, binary layout, BMC flash, or bare-metal firmware metadata"),
             Some(INSPECT_AFTER),
             true,
         );
@@ -1870,6 +1884,7 @@ const ROOT_AFTER: &str = r#"Getting started:
 Examples:
   fat ./firmware.bin
   fat identify --file ./firmware.bin
+  fat inspect bmc --file ./flash.mtd --details
   fat new ./firmware.bin
   fat extract ./.fat-projects/demo
   fat analyze ./.fat-projects/demo
@@ -1937,6 +1952,12 @@ What it does:
   is already extracted and leaves work/extractions untouched. Use --force when
   you intentionally want to re-run extraction and overwrite those artifacts.
 
+  --extractor native uses FAT's built-in ZIP, TAR, gzip, SquashFS, CramFS, and
+  JFFS2 decoders without external fallback. JFFS2 CRCs are validated and files
+  reconstructed from versioned fragments before inspecting nested gzip streams.
+  Unsupported codecs and incomplete files remain unresolved; auto retains
+  fallback extraction for them.
+
   Each external extractor runs under a deadline. On timeout FAT kills that
   extractor's whole process group, records the timeout in work/<tool>.log, and
   continues down the chain instead of hanging.
@@ -1955,7 +1976,9 @@ What it does:
 
   --json emits a single fat.extract.v1 object on stdout with the engine, engine
   version, per-engine outcomes, rootfs and kernel paths with sizes, and the file
-  count. Progress moves to stderr so stdout stays parseable.
+  count. recovery_status summarizes rootfs_recovered, files_only, or partial;
+  artifacts records each native decoding outcome. Progress moves to stderr so
+  stdout stays parseable.
 
 Examples:
   fat extract ./.fat-projects/demo
@@ -1963,11 +1986,13 @@ Examples:
   fat extract ./firmware.bin --force
   fat extract ./firmware.bin --extract-timeout 300
   fat extract ./firmware.bin --extractor all
+  fat extract ./.fat-projects/bmc --extractor native --json
   fat extract ./firmware.bin --json | jq -r .rootfs.path
 
 Tips:
   - Run fat doctor first if extraction tools such as binwalk or unblob are missing.
   - Re-running without --force is safe for hand-edited files under work/extractions.
+  - BMC images with case-distinct filenames require a project on case-sensitive storage.
   - The summary reports which engine won and why the others were skipped.
   - Follow a slow extraction with: tail -f <project>/work/binwalk.log
   - unblob tuning is forwarded only when set, so the default run is unblob's own.
@@ -2500,15 +2525,48 @@ What it does:
 
 const INSPECT_AFTER: &str = r#"What it does:
   Groups read-only inspection commands for headers, layout, opaque-wrapper triage,
-  and MCU-oriented firmware characterization.
+  BMC flash metadata, and MCU-oriented firmware characterization.
 
 Examples:
   fat inspect headers --file ./firmware.bin
   fat inspect envelope --file ./opaque.bin --reference ./older.bin
   fat inspect layout --file ./router.cgi --json
+  fat inspect bmc --file ./flash.mtd --details
   fat inspect mcu --file ./firmware.bin --json
   fat inspect peripheral-map --file ./firmware.bin --family STM32H7
   fat inspect isr-state --file ./firmware.bin --family STM32H7
+"#;
+
+const INSPECT_BMC_AFTER: &str = r#"Syntax:
+  fat inspect bmc --file <flash.mtd> [--details] [--json | --sarif]
+                  [--env-offset <offset> --env-size <size>] [--fail-on-warning]
+
+What it does:
+  Inspects raw BMC flash without executing firmware or contacting a controller.
+  Reports layout, FIT hash/signature metadata, located platform markers, and
+  CRC-valid U-Boot environments. Signature nodes are stored metadata;
+  cryptographic verification and bootloader enforcement are not tested.
+
+  --details expands text tables without changing analysis or structured output.
+  --json includes scan bounds and diagnostics; --sarif emits SARIF 2.1.0.
+  --fail-on-warning emits the full report before exiting nonzero when warning
+  or error findings exist.
+
+  Automatic environment discovery searches the first 64 MiB at 4 KiB alignment,
+  using candidate sizes from 4 KiB to 256 KiB. Supply both --env-offset and
+  --env-size for another region (up to 1 MiB); sizes include the stored header.
+  Decimal and hexadecimal values are accepted.
+
+Examples:
+  fat inspect bmc --file ./flash.mtd
+  fat inspect bmc --file ./flash.mtd --details
+  fat inspect bmc --file ./flash.mtd --json > inspection.json
+  fat inspect bmc --file ./flash.mtd --sarif --fail-on-warning > findings.sarif
+  fat inspect bmc --file ./flash.mtd --env-offset 0x60000 --env-size 0x20000
+
+Tips:
+  - Extract embedded filesystems separately with fat new followed by fat extract.
+  - Use case-sensitive project storage for BMC filesystems with case-distinct names.
 "#;
 
 const INSPECT_HANDOFF_AFTER: &str = r#"Syntax:

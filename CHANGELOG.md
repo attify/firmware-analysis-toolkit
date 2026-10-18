@@ -8,6 +8,7 @@
 
 ### Changed
 
+- Expanded BMC inspection and native JFFS2 guidance in the command help and documentation, including extraction outcomes, case-sensitive storage, and source-build availability.
 - Replaced Binwalk with binwalk-ng 4.0.0 in the source installer, including upgrades of existing installations.
 - Added automatic installation of Sasquatch and lzop for SquashFS and LZO extraction.
 - Raised the minimum supported Rust version to 1.91.

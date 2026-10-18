@@ -2,6 +2,10 @@
 
 Usage details for selected capabilities. What each output does and does not prove is covered in [How to read FAT output](epistemics.md).
 
+## BMC firmware
+
+`fat inspect bmc --file flash.mtd` reports raw layout, FIT authentication metadata, located platform markers, and CRC-valid U-Boot environments. It supports detailed text, JSON, SARIF, and an optional warning exit gate. Native extraction reconstructs JFFS2 files before inspecting their compressed contents. See [Inspecting BMC firmware](bmc-inspection.md) for the workflow, supported formats, search bounds, and validation evidence.
+
 ## Graph export
 
 `inventory` is the neutral graph profile. It emits directories, files, file kinds, SHA-256 hashes, and rabin2 import and export edges without adding research-specific labels.

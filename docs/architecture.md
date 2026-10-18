@@ -29,7 +29,7 @@ For build, test, and contribution workflow, see [DEVELOPMENT.md](../DEVELOPMENT.
 
 ## Extraction
 
-`fat_extract::pipeline` runs a deterministic queue of container members and embedded regions. Archive handlers unwrap ZIP, TAR, and gzip; filesystem handlers produce terminal trees. Extracted filesystem contents retain their original layout rather than gaining analysis-generated files. A single signature scanner skips successfully decoded spans.
+`fat_extract::pipeline` runs a deterministic queue of container members and embedded regions. Archive handlers unwrap ZIP, TAR, and gzip. SquashFS and CramFS handlers produce terminal trees; JFFS2 reconstructs regular files and queues private copies for recursive inspection. Those copies preserve access even when firmware directory permissions prevent traversal, and failed decodes remove them immediately. Published filesystem contents retain their original layout rather than gaining analysis-generated files. A single signature scanner skips successfully decoded spans.
 
 `output::OutputTree` owns path validation, cumulative output accounting, private staging, mode preservation, and deferred symlinks. Publication happens only after the decoder finishes. SquashFS header, inode, compression, and cached metadata readers are separate modules. CramFS reuses its bounded decoder. New formats can reuse the writer and return child paths for further inspection or a terminal tree.
 
@@ -38,3 +38,9 @@ Artifact records retain their source, parent, source-relative offset, decoder, o
 Default native limits are 512 MiB per input, 256 MiB per file, 1 GiB cumulative output including symlink targets, 262,144 output entries, 4,096 artifacts, eight container levels, and 64 path components. Metadata and fragment caches share a 16 MiB cap. Filesystem decoders never execute recovered programs.
 
 Supported SquashFS codecs are zlib, LZMA, and XZ. Other codecs produce explicit unsupported outcomes. Special device entries are counted and omitted; ownership, timestamps, and extended attributes are not restored. TAR hard links and sparse entries are currently unsupported. Case-distinct filenames require case-sensitive output storage; collisions fail the tree instead of overwriting a file.
+
+JFFS2 validates header, inode, data, and filename CRCs, applies inode versions and directory-entry deletions, and supports both byte orders with uncompressed, copy, zero-filled, and zlib fragments. Unsupported nodes/codecs and incomplete reconstruction remain unresolved. See [JFFS2 extraction limits](bmc-inspection.md#extracting-filesystems).
+
+## BMC inspection
+
+`fat_analyze::bmc` combines layout, located markers, FIT metadata from `fat_analyze::fit`, and CRC-validated environments from `fat_analyze::boot_env`. `fat_core` owns the serializable evidence; `fat_cli::bmc_cmd` renders text, JSON, and SARIF from that model. FIT analysis reuses the bounded FDT reader in `firmware_formats` and also appears in generic header inspection. Signature metadata, cryptographic verification, and hardware enforcement remain separate evidence classes; `--details` changes presentation only.

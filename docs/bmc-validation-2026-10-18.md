@@ -218,8 +218,8 @@ snapshot lifetime.
 
 ## Reproduction and local evidence
 
-Use the baseline binary to reproduce the initial results, or build the
-validation worktree with its JFFS2 changes for the corrected extraction. Use
+Use the archived baseline binary to reproduce the initial results, or build
+merged commit `d024d01` (PR #113) for the corrected extraction. Use
 an input matching the hash table. The ordinary, detailed, and structured reports consume the same
 analysis:
 
@@ -235,9 +235,13 @@ fat new "$image" --name "$name" --projects-dir "$projects_dir"
 fat extract "$projects_dir/$name" --extractor native --json > extraction.json
 ```
 
-Private evidence is retained under `.tmp/megarac-validation/` in the validation
-worktree. Firmware inputs remain in the existing `bmc-megarac/images/` research
-directory and are not included in this change. Evidence includes:
+The validation worktree was removed after merging. The maintainers retain the
+original reports, pinned binaries, disk image, and Git history in a private
+archive with a SHA256 manifest and verification script. Historical `.tmp/`
+paths in this report describe the original runs, not files shipped with FAT.
+Public reproduction uses the source commit and input hashes above; vendor
+firmware and extracted filesystems are not included in the repository. The
+archived evidence includes:
 
 - `baseline-manifest.json`, `package-provenance.json`, `formats-manifest.json`.
 - Per-image JSON, text, detailed, SARIF, stderr, command/exit records, and native
@@ -246,7 +250,7 @@ directory and are not included in this change. Evidence includes:
 - `baseline.py`, `formats.py`, `extract.py`, `check_fit.py`, and
   `check_extraction.py`, with the exact local paths and commands used.
 - `case-sensitive.asif`, preserving the additional extracted projects on a
-  case-sensitive filesystem. Reattach with `diskutil image attach` to inspect
+  case-sensitive filesystem. Reattach with `diskutil image attach --readOnly` to inspect
   the `FAT-BMC-CaseSensitive` volume.
 
 See [BMC inspection usage](bmc-inspection.md) for search bounds and finding
