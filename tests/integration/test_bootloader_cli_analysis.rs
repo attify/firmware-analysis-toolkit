@@ -56,16 +56,33 @@ fn fat_analyze_writes_bootloader_artifact() {
         .findings
         .iter()
         .any(|finding| finding == "BOOT-SIG-BYPASS"));
-    assert!(snapshot
+    assert!(!snapshot
         .findings
         .iter()
         .any(|finding| finding == "BOOT-ENV-CONTROLLED-FLOW"));
+    assert!(snapshot.env_variables.is_empty());
+    let json: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&artifact).unwrap()).unwrap();
+    assert!(json["raw_env_hints"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|hint| hint["key"] == "bootdelay" && hint["value"] == "3"));
+    let inspection = Command::new(env!("CARGO_BIN_EXE_fat"))
+        .args(["bootloader", "inspect", project_dir.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(inspection.status.success(), "{inspection:?}");
+    let text = String::from_utf8_lossy(&inspection.stdout);
+    assert!(text.contains("raw bootloader assignment hints (CRC not checked):"));
+    assert!(text.contains("bootdelay=3"));
+    assert!(!text.contains("BOOT-ENV-CONTROLLED-FLOW"));
     assert!(
         !snapshot
-            .env_variables
+            .raw_env_hints
             .iter()
             .any(|variable| variable.key == "exit"),
-        "generic log metadata must not be parsed as bootloader env"
+        "generic log metadata must not be parsed as a bootloader hint"
     );
     assert!(snapshot
         .findings

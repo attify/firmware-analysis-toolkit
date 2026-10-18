@@ -176,3 +176,31 @@ fn unreadable_child_is_reported_and_readable_sibling_continues() {
         assert!(report.has_unresolved());
     }
 }
+
+#[test]
+fn web_gzip_members_have_format_directories_and_preserve_payloads() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut bytes = Vec::new();
+    for name in ["Index.js", "Index.css"] {
+        let mut gzip = flate2::GzBuilder::new()
+            .filename(name)
+            .write(Vec::new(), flate2::Compression::default());
+        gzip.write_all(b"web asset contents").unwrap();
+        bytes.extend(gzip.finish().unwrap());
+    }
+    let input = temp.path().join("firmware");
+    std::fs::write(&input, bytes).unwrap();
+    let output = temp.path().join("output");
+    let report = extract(&input, &output, PipelineOptions::default()).unwrap();
+    assert_eq!(report.artifacts.len(), 2);
+    for (id, name) in ["Index.js", "Index.css"].iter().enumerate() {
+        let artifact = &report.artifacts[id];
+        assert_eq!(artifact.status, ArtifactStatus::Recovered);
+        let directory = output.join(format!("{id:04}-gzip"));
+        assert_eq!(artifact.output.as_ref(), Some(&directory));
+        assert_eq!(
+            std::fs::read(directory.join(name)).unwrap(),
+            b"web asset contents"
+        );
+    }
+}

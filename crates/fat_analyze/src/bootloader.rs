@@ -4,7 +4,7 @@ use std::io::{Cursor, Read, Write};
 use std::path::Path;
 
 use fat_core::bootloader::{
-    BootEnvVariable, BootFlowHint, BootImageHeader, BootValueSource, BootloaderSnapshot,
+    BootEnvHint, BootFlowHint, BootImageHeader, BootValueSource, BootloaderSnapshot,
     EmbeddedSignature, KernelCmdline, MtdPartition, MtdPartitionMap, SecureBootHint,
 };
 use fat_core::inspection::{CompressionMember, ContainerHeader, FilesystemHeader};
@@ -22,6 +22,7 @@ const UIMAGE_HEADER_SIZE: usize = 64;
 const UNITREE_UPK_HEADER_SIZE: usize = 112;
 const MAX_CMDLINE_SCAN_DECOMPRESSED_BYTES: usize = 32 * 1024 * 1024;
 
+/// Collect raw string hints without inferring stored environment or boot policy.
 pub fn analyze_text(text: &str) -> BootloaderSnapshot {
     let mut snapshot = BootloaderSnapshot::default();
 
@@ -37,45 +38,19 @@ pub fn analyze_text(text: &str) -> BootloaderSnapshot {
         }
 
         if let Some((key, value)) = parse_env_assignment(line) {
-            snapshot.env_variables.push(BootEnvVariable {
+            snapshot.raw_env_hints.push(BootEnvHint {
                 key: key.to_string(),
                 value: value.to_string(),
-                source: BootValueSource::Observed,
             });
 
             match key.to_ascii_lowercase().as_str() {
                 "bootdelay" => {
                     if parse_integer(value).is_some() {
                         push_flow_hint(&mut snapshot, line);
-                        push_finding(&mut snapshot.findings, "BOOT-ENV-CONTROLLED-FLOW");
                     }
                 }
                 "bootcmd" | "bootargs" => {
                     push_flow_hint(&mut snapshot, value);
-                    push_finding(&mut snapshot.findings, "BOOT-ENV-CONTROLLED-FLOW");
-                }
-                "verify" => {
-                    if !is_truthy(value) {
-                        push_finding(&mut snapshot.findings, "BOOT-SIG-BYPASS");
-                    }
-                }
-                "sig_check" => {
-                    snapshot.secure_boot_hints.push(SecureBootHint {
-                        value: line.to_string(),
-                    });
-                    if !is_truthy(value) {
-                        push_finding(&mut snapshot.findings, "BOOT-SIG-BYPASS");
-                    }
-                }
-                "recovery_mode" => {
-                    if is_falsey(value) {
-                        push_finding(&mut snapshot.findings, "BOOT-RECOVERY-DISABLED");
-                    }
-                }
-                _ if key.to_ascii_lowercase().contains("rollback")
-                    && (is_zeroish(value) || is_falsey(value)) =>
-                {
-                    push_finding(&mut snapshot.findings, "BOOT-ROLLBACK-BYPASS");
                 }
                 _ => {}
             }
@@ -296,6 +271,7 @@ pub fn merge_snapshots(
     }
 
     base.env_variables.extend(overlay.env_variables);
+    base.raw_env_hints.extend(overlay.raw_env_hints);
     base.flow_hints.extend(overlay.flow_hints);
     base.secure_boot_hints.extend(overlay.secure_boot_hints);
     if base.kernel_cmdline.is_none() {
@@ -331,6 +307,10 @@ fn finalize_snapshot(mut snapshot: BootloaderSnapshot) -> BootloaderSnapshot {
     snapshot.findings.dedup();
     snapshot.flow_hints.sort_by(|a, b| a.value.cmp(&b.value));
     snapshot.flow_hints.dedup_by(|a, b| a.value == b.value);
+    snapshot
+        .raw_env_hints
+        .sort_by(|a, b| a.key.cmp(&b.key).then_with(|| a.value.cmp(&b.value)));
+    snapshot.raw_env_hints.dedup();
     snapshot.env_variables.sort_by(|a, b| {
         a.key
             .cmp(&b.key)
@@ -1401,28 +1381,6 @@ fn is_interesting_env_key(key: &str) -> bool {
 
 fn parse_integer(value: &str) -> Option<u64> {
     value.trim().parse::<u64>().ok()
-}
-
-fn is_truthy(value: &str) -> bool {
-    matches!(
-        value.trim().to_ascii_lowercase().as_str(),
-        "1" | "true" | "yes" | "on" | "enabled"
-    )
-}
-
-fn is_falsey(value: &str) -> bool {
-    matches!(
-        value.trim().to_ascii_lowercase().as_str(),
-        "0" | "false" | "no" | "off" | "disabled"
-    )
-}
-
-fn is_zeroish(value: &str) -> bool {
-    value
-        .trim()
-        .parse::<u64>()
-        .map(|value| value == 0)
-        .unwrap_or(false)
 }
 
 fn push_flow_hint(snapshot: &mut BootloaderSnapshot, value: &str) {

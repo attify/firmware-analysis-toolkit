@@ -18,7 +18,7 @@ fn prepared_bootloader_project() -> (TempDir, std::path::PathBuf) {
     let project_dir = tempdir.path().join("camera-demo");
     std::fs::create_dir_all(project_dir.join("analysis")).expect("analysis dir");
 
-    let snapshot = BootloaderSnapshot {
+    let mut snapshot = BootloaderSnapshot {
         family: Some("u-boot".into()),
         version_hint: Some("U-Boot 2024.01".into()),
         env_variables: vec![
@@ -35,6 +35,10 @@ fn prepared_bootloader_project() -> (TempDir, std::path::PathBuf) {
         ],
         ..Default::default()
     };
+
+    snapshot.raw_env_hints =
+        fat_analyze::bootloader::analyze_text("sig_check=no\nbootargs=untrusted-raw-string\n")
+            .raw_env_hints;
 
     std::fs::write(
         project_dir.join("analysis").join("bootloader.json"),
@@ -74,5 +78,7 @@ fn bootloader_export_env_outputs_generated_env_text() {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("bootcmd="));
-    assert!(stdout.contains("sig_check="));
+    assert!(stdout.contains("sig_check=yes"));
+    assert!(!stdout.contains("sig_check=no"));
+    assert!(!stdout.contains("untrusted-raw-string"));
 }

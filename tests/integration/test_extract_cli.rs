@@ -50,7 +50,7 @@ fn fat_extract_uses_native_gzip_and_cramfs_without_external_engines() {
     let project_dir = only_project_dir(workspace.path());
     let native = project_dir.join("work/extractions/native");
     assert_eq!(
-        fs::read(native.join("kernel/vmlinux.64")).expect("kernel"),
+        fs::read(native.join("0000-gzip/vmlinux.64")).expect("kernel"),
         b"kernel-payload-for-fat"
     );
     assert!(native.join("cramfs-root/bin/busybox").is_file());
@@ -89,7 +89,7 @@ fn fat_extract_uses_native_gzip_and_cramfs_without_external_engines() {
     assert!(
         kernel_paths[0]
             .as_str()
-            .is_some_and(|path| path.ends_with("native/kernel/vmlinux.64")),
+            .is_some_and(|path| path.ends_with("native/0000-gzip/vmlinux.64")),
         "{manifest:?}"
     );
     assert_eq!(project_status(&project_dir), ProjectStatus::Extracted);
@@ -117,7 +117,7 @@ fn fat_extract_preserves_native_kernel_evidence_when_external_fallback_fails() {
     let project_dir = only_project_dir(workspace.path());
     assert_eq!(project_status(&project_dir), ProjectStatus::Error);
     assert_eq!(
-        fs::read(project_dir.join("work/extractions/native/kernel/vmlinux.64"))
+        fs::read(project_dir.join("work/extractions/native/0000-gzip/vmlinux.64"))
             .expect("preserved kernel"),
         b"kernel-payload-for-fat"
     );

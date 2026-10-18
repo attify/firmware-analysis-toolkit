@@ -38,6 +38,14 @@ fat inspect bmc --file flash.mtd --env-offset 0x60000 --env-size 0x20000 --detai
 
 Recovered variables retain byte offsets, region size, CRC validity and redundant-copy flags. Flags are not used to select the active copy. A supplied region that has no valid environment is reported in JSON diagnostics. Invalid or out-of-bounds arguments fail the command.
 
+### Raw strings versus validated environments
+
+`fat analyze <project>` records assignments found in firmware strings under `raw_env_hints` in `analysis/bootloader.json`. `fat bootloader inspect <project>` labels them **raw bootloader assignment hints (CRC not checked)**. Strings such as `bootcmd=bootfmh`, `verify=yes`, or `sig_check=%s` can be defaults or diagnostic templates. They do not generate boot-policy findings or supply environment values to emulation.
+
+`fat inspect bmc --file <firmware> --json` separately reports CRC-validated regions in `environment_scan.environments`, with offsets, sizes, stored CRCs, and redundancy flags. An empty result means no valid region was found within the reported search bounds. CRC validity does not establish which copy is active or what hardware enforces.
+
+Existing snapshots still load. Their `env_variables` remain available for imported emulation settings; the inspector labels these as imported/legacy values with CRC not checked. Rerun `fat analyze` to replace an older raw-string-derived snapshot with the separated hint model.
+
 ## Platform and trust markers
 
 OpenBMC/MegaRAC strings and ASPEED compatible strings are independently located evidence. Generic `fwmap`, `sig_table`, and `AdaptiveModules` markers do not establish a vulnerable parser, a reachable update path, or a specific CVE. Raw-string matches are labeled as markers, including their offsets.
@@ -56,6 +64,8 @@ Inspection reads the raw image; it does not extract its filesystems. Create a pr
 fat new ./flash.mtd --name bmc --projects-dir /path/to/case-sensitive/projects
 fat extract /path/to/case-sensitive/projects/bmc --extractor native --json > extraction.json
 ```
+
+Gzip members are published in artifact-ID/format directories such as `work/extractions/native/0004-gzip`, with the original safe member name retained. A gzip directory does not classify its payload as a kernel. Read `kernel_paths` in the extraction manifest for kernel candidates and `artifacts` for source/parent relationships and actual output paths. Cached projects retain their existing directories until extraction is rerun with `--force`.
 
 `--extractor native` uses only FAT's built-in extraction path. Omit it to use `auto`, which retains external fallback when native recovery is incomplete. The JSON `recovery_status` summarizes recovery; `artifacts` records individual successes, unsupported formats, and failures. A previous extraction is reused unless `--force` is supplied; `--force` overwrites existing extraction artifacts.
 

@@ -940,7 +940,7 @@ pub fn apply(root: &mut Command) {
         if let Some(sub) = cmd.find_subcommand_mut("inspect") {
             configure(
                 sub,
-                Some("Inspect bootloader artifacts, environment, and discovered launch hints"),
+                Some("Inspect bootloader artifacts, raw assignment hints, and imported environment values"),
                 Some(BOOTLOADER_INSPECT_AFTER),
                 false,
             );
@@ -2520,7 +2520,8 @@ const BOOTLOADER_INSPECT_AFTER: &str = r#"Syntax:
   fat bootloader inspect <project-dir>
 
 What it does:
-  Inspects bootloader artifacts, flow hints, and discovered environment information.
+  Inspects bootloader artifacts, raw assignment hints, and imported/legacy environment values.
+  Raw strings are not CRC-validated environments. Use fat inspect bmc --file <firmware> to check stored regions.
 "#;
 
 const INSPECT_AFTER: &str = r#"What it does:
