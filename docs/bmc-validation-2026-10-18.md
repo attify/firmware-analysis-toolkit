@@ -185,6 +185,37 @@ used for the real-image checks. The case-sensitive disk image retains both the
 baseline projects and `jffs2-final-projects`. This follow-up reran the three
 MegaRAC images; the other corpus rows above remain baseline observations.
 
+## PR review and upstream integration
+
+Review of the BMC parsers and CLI found no blocking correctness issue. Scoped
+checks passed 36 parser/model tests and seven CLI tests. FIT and environment
+probes rejected terminal-control payloads before text rendering.
+
+The extraction review identified and fixed temporary snapshot retention after
+failed JFFS2 attempts. A regression fixture reconstructs one file, then fails on
+an unsupported codec; the test requires both the unpublished output and private
+copies to be removed. A guard now retains copies only after successful staged
+publication. The symlink fixture and assertions are Unix-specific; directory
+and depth checks still run on other platforms.
+
+The branch incorporates upstream `28c8a40` (installer migration and Rust 1.91
+minimum). Merge `1506a11` preserves those changes and the BMC/JFFS2 changelog
+entries. The three MegaRAC extraction and independent-comparison runs were
+repeated at that merge: all three remain `rootfs_recovered`, with zero unresolved
+artifacts, all 15 gzip streams recovered, and all 16,418 baseline entries
+unchanged. The pinned rerun binary SHA256 is
+`498b12597b3d00444b2b24c18f98727f07778e4fa1e7d181e582f0ce674ad6e6`.
+Private review and rerun evidence is in `.tmp/pr-review/`, including command
+logs, `REVIEW.md`, and the `real/` results. The disk image also retains
+`pr-review-projects`.
+
+Final preflight passed formatting, workspace Clippy with warnings denied,
+2,056 Rust tests (one ignored), all four kernel-profile consistency tests,
+runtime-data bundle verification, all 39 installer tests, and diff whitespace
+checks. The final source also explicitly discards the retained temporary path
+returned by `TempDir::keep`; this satisfies Clippy without changing the tested
+snapshot lifetime.
+
 ## Reproduction and local evidence
 
 Use the baseline binary to reproduce the initial results, or build the

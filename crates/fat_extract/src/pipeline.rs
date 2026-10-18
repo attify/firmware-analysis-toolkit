@@ -461,7 +461,7 @@ fn decode(
     if let Some(cache) = snapshot_guard {
         // Failed decodes drop their copies immediately. Successful copies stay
         // within the pipeline-owned temporary root until the queue reads them.
-        cache.keep();
+        let _ = cache.keep();
     }
     Ok(children)
 }
