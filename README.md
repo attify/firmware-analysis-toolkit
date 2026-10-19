@@ -89,6 +89,8 @@ BMC inspection also supports `--sarif --fail-on-warning` for CI. FIT signatures 
 
 Run supported BMC services with `fat emulate --project <project> --pack bmc-romulus` or the explicit ASUS vendor-kernel profile. List profiles with `fat rehost profiles list`; see [BMC emulation](docs/bmc-emulation.md) for input hashes, adaptations, Redfish checks and debugging.
 
+For disposable lab accounts, `fat debug redfish-session` checks ReadOnly role enforcement and session revocation with an administrator positive control. `fat debug process` attaches to a guest daemon through SSH and records its identity and cleanup. See [BMC session and process debugging](docs/bmc-session-debugging.md) for setup and the Romulus/ASUS results.
+
 Native extraction reconstructs JFFS2 files before inspecting nested compressed content. See [Inspecting BMC firmware](docs/bmc-inspection.md) for the extraction workflow, case-sensitive storage requirements, SARIF output, and environment overrides.
 
 ### Image to Runtime

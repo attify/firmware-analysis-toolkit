@@ -1813,7 +1813,7 @@ fn find_monitor_binary() -> Option<PathBuf> {
     None
 }
 
-fn find_gdb_binary() -> Option<PathBuf> {
+pub(crate) fn find_gdb_binary() -> Option<PathBuf> {
     if let Some(path) = std::env::var_os("PATH") {
         for entry in std::env::split_paths(&path) {
             for binary in ["gdb", "gdb-multiarch"] {
@@ -1919,6 +1919,10 @@ fn monitor_command(target: &MonitorAttachTarget, command: &str) -> DynResult<Str
     stream.set_read_timeout(timeout)?;
     stream.set_write_timeout(timeout)?;
     monitor_exchange(&mut stream, command)
+}
+
+pub(crate) fn runtime_monitor_command(context: &DebugContext, command: &str) -> DynResult<String> {
+    monitor_command(&resolve_monitor_target(&context.view)?, command)
 }
 
 fn monitor_exchange(

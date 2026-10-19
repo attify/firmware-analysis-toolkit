@@ -4,6 +4,8 @@
 
 ### Added
 
+- `debug redfish-session` tests session creation, ReadOnly cross-account denial, an administrator positive control, target restoration and token revocation on an emulated BMC. `debug process` attaches userspace GDB over an owned temporary SSH forward and records process identity, detach and cleanup results.
+
 - Hash-pinned BMC profiles for native full-flash and vendor-kernel boot, including verified FIT kernel/DTB/initramfs assets, explicit DTB adaptations, private snapshot flash, and fresh loopback Redfish readiness observations.
 
 - `inspect bmc` reports raw flash layout, FIT authentication metadata, located BMC markers, and CRC-validated U-Boot environments with text, JSON, and SARIF output.

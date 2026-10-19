@@ -62,6 +62,8 @@ fat emulate --project .fat-projects/romulus --stop
 
 The shell command attaches to the serial console for interactive login; it does not supply credentials or execute `--command` over an unauthenticated console. GDB connects to the whole-system QEMU stub. Register and instruction inspection work without symbols; source debugging requires a matching symbol-bearing ELF. This is separate from attaching a userspace gdbserver to a particular daemon.
 
+Use [`fat debug process` and `fat debug redfish-session`](bmc-session-debugging.md) for a bounded userspace attachment and a controlled session/role experiment. These require explicit lab setup and disposable accounts; the existing boot profiles do not enable SSH access or change credentials.
+
 For a controlled readiness check, `fat debug monitor --command stop` pauses the guest; `--status` should then report Redfish not ready. Resume with `fat debug monitor --command cont` and check again. The QEMU process remains running during this test. Stopped/failed runs retain historical observations but no longer advertise current attachable debug surfaces.
 
 Per-run staging under `work/rehosting/` contains:
