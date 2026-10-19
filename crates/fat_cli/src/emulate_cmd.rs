@@ -410,7 +410,7 @@ fn launch_session(
     let explicit_pack = crate::rehost_cmd::resolve_pack_for_emulate(pack.as_deref(), &[])?;
 
     let mut target_signals = load_project_signals(project_dir).unwrap_or_default();
-    if let Some(kernel_class) = kernel_class {
+    if let Some(kernel_class) = &kernel_class {
         target_signals.push(format!("kernel-class:{kernel_class}"));
     }
     if target_signals.is_empty() {
@@ -463,7 +463,21 @@ fn launch_session(
         instrument.is_some(),
     );
 
-    let effective_backend = effective_instrument_backend(backend.clone(), instrument.is_some());
+    let bmc_requested = pack_overlay
+        .as_ref()
+        .is_some_and(|overlay| overlay.bmc_boot.is_some());
+    if bmc_requested && (!ports.is_empty() || kernel_class.is_some()) {
+        return Err("BMC profiles allocate their own loopback HTTPS/debug ports and vendor boot assets; omit --port and --kernel-class".into());
+    }
+    if bmc_requested
+        && backend
+            .as_deref()
+            .is_some_and(|value| value != "qemu-direct")
+    {
+        return Err("BMC profiles require the qemu-direct native backend".into());
+    }
+    let effective_backend =
+        effective_instrument_backend(backend.clone(), instrument.is_some() || bmc_requested);
 
     let mut bundle_request = EmulationBundleRequest::new(session_id, ports)
         .with_target_evidence(target_signals.clone())
@@ -540,6 +554,15 @@ fn launch_session(
             let report = final_pack_capability_report(overlay, &plan);
             ensure_pack_capability(&report, accept_degraded_rehosting)?;
             plan.rehosting_recipe.rehosting_capability = Some(report);
+            if overlay.bmc_boot.is_some() {
+                plan.rehosting_recipe.validators = overlay.extra_validators.clone();
+                plan.readiness_goals = overlay
+                    .extra_validators
+                    .iter()
+                    .map(|v| v.goal.clone())
+                    .collect();
+                plan.run.record.active_endpoints.clear();
+            }
         }
         let recipe = persist_plan_execution_records(
             project_dir,
@@ -751,7 +774,8 @@ fn final_pack_capability_report(
     if !consumes_qemu_machine || !consumes_filesystem_transforms {
         let mut unsupported = Vec::new();
         report.supported_actions.retain(|action| {
-            let backend_specific = (action == "qemu-machine" && !consumes_qemu_machine)
+            let backend_specific = (matches!(action.as_str(), "qemu-machine" | "bmc-boot")
+                && !consumes_qemu_machine)
                 || (action.starts_with("materialize:") && !consumes_filesystem_transforms);
             if backend_specific {
                 unsupported.push(action.clone());
@@ -1858,7 +1882,7 @@ fn persist_runner_blueprint_artifacts(
             store.write_confidence_report(&blueprint.initial_confidence)?;
         }
         RunnerKind::System => {
-            let blueprint = build_system_runner_blueprint(plan, &staging_root);
+            let blueprint = native_system_blueprint(plan, &staging_root)?;
             store.write_staging_manifest(&blueprint.staging)?;
             store.write_confidence_report(&blueprint.initial_confidence)?;
         }
@@ -1869,6 +1893,18 @@ fn persist_runner_blueprint_artifacts(
         }
     }
     Ok(())
+}
+
+fn native_system_blueprint(
+    plan: &fat_emulate::EmulationPlan,
+    root: &Path,
+) -> DynResult<SystemRunnerBlueprint> {
+    match &plan.rehosting_recipe.bmc_boot {
+        Some(config) => {
+            fat_emulate::bmc_runner::build_bmc_blueprint(plan, root, config).map_err(Into::into)
+        }
+        None => Ok(build_system_runner_blueprint(plan, root)),
+    }
 }
 
 fn runtime_staging_root(project_dir: &Path, plan: &fat_emulate::EmulationPlan) -> PathBuf {
@@ -1951,6 +1987,9 @@ fn promote_runtime_validation_state(
         return Ok(());
     };
     let run = store.read_run(session_id, run_id)?;
+    if recipe.bmc_boot.is_some() {
+        return refresh_bmc_service(store, project_record, &recipe, readiness, &run);
+    }
     let existing_artifacts = store
         .read_run_artifacts(session_id, run_id)
         .unwrap_or_default();
@@ -2908,6 +2947,7 @@ fn project_rehosting_recipe_for_plan(
         recipe = recipe.with_instrumentation(instrumentation.clone());
     }
     recipe.qemu_machine = source.qemu_machine.clone();
+    recipe.bmc_boot = source.bmc_boot.clone();
     recipe.network = source.network.clone();
     recipe.rehosting_capability = source.rehosting_capability.clone();
     recipe
@@ -3151,17 +3191,26 @@ fn launch_native_system_session(
 ) -> DynResult<()> {
     let readiness_goals = plan.readiness_goals.clone();
     let target_id = derive_target_id(&project_record.name, &project_record.firmware_name);
-    let mut blueprint =
-        build_system_runner_blueprint(&plan, &runtime_staging_root(project_dir, &plan));
+    let mut blueprint = native_system_blueprint(&plan, &runtime_staging_root(project_dir, &plan))?;
 
     // Forward typed instrumentation config to the launch spec
     if let Some(instrumentation) = plan.rehosting_recipe.instrumentation.clone() {
         blueprint.launch.instrumentation = Some(instrumentation);
     }
 
-    if let Err(diagnostic) =
+    let prepared = if let Some(bmc) = &plan.rehosting_recipe.bmc_boot {
+        crate::bmc_emulate::materialize(
+            &project_dir
+                .join("input")
+                .join(&project_record.firmware_name),
+            &blueprint.launch,
+            bmc,
+        )
+        .map_err(|error| native_system_preparation_error(&plan, error.to_string()))
+    } else {
         materialize_native_system_boot_assets(project_dir, &plan, &blueprint, probe)
-    {
+    };
+    if let Err(diagnostic) = prepared {
         return persist_failed_launch(project_dir, store, &recipe, plan.launch(), diagnostic);
     }
     let launch_result = match launch_native_system_with(
@@ -6809,6 +6858,38 @@ fn render_runtime_output(
             ));
         }
     }
+    if let Some(recipe) =
+        load_rehosting_recipe_record(store, &view.session.session_id, &view.run.run_id)?
+    {
+        if let Some(bmc) = recipe.bmc_boot {
+            output.push_str(&format!("BMC boot: {} on {}\n", bmc.mode(), bmc.machine));
+            if let Some(vendor) = bmc.vendor_kernel {
+                let changes = if vendor.disable_nodes.is_empty() {
+                    "DTB unchanged".to_string()
+                } else {
+                    format!("disabled DTB nodes: {}", vendor.disable_nodes.join(", "))
+                };
+                output.push_str(&format!(
+                    "boot adaptations: SPL/U-Boot bypassed; {changes}\n"
+                ));
+            }
+            if let Some(readiness) =
+                load_readiness_report_record(store, &view.session.session_id, &view.run.run_id)?
+            {
+                if let Some(summary) = readiness.summary {
+                    let historical = if matches!(
+                        view.run.status,
+                        RunStatus::Running | RunStatus::DegradedRunning
+                    ) {
+                        ""
+                    } else {
+                        "last observation (run inactive): "
+                    };
+                    output.push_str(&format!("{historical}{summary}\n"));
+                }
+            }
+        }
+    }
     Ok(output)
 }
 
@@ -8663,4 +8744,81 @@ mod termination_tests {
         // let a gc sweep mark a live session stale.
         assert!(process_is_running(1));
     }
+}
+
+fn refresh_bmc_service(
+    store: &RuntimeStore,
+    project: &fat_core::project::Project,
+    recipe: &RehostingRecipe,
+    mut readiness: ReadinessReport,
+    run: &fat_core::runs::RunRecord,
+) -> DynResult<()> {
+    let Some(url) = run
+        .active_endpoints
+        .iter()
+        .find(|e| e.name == "bmc-redfish")
+        .and_then(|e| e.uri.as_deref())
+    else {
+        return Err("BMC run lacks its HTTPS endpoint".into());
+    };
+    let observation = crate::bmc_emulate::probe_service(url);
+    let status_label = |status: Option<u16>| {
+        status
+            .map(|code| code.to_string())
+            .unwrap_or_else(|| "no response".into())
+    };
+    let summary = format!(
+        "BMC Redfish: {} (ServiceRoot HTTP {}; unauthenticated Managers HTTP {})",
+        if observation.service_root_valid {
+            "validated"
+        } else {
+            "not ready"
+        },
+        status_label(observation.service_root_status),
+        status_label(observation.managers_status)
+    );
+    write_runtime_state_artifact(
+        store,
+        project,
+        &run.session_id,
+        &run.run_id,
+        &run.backend_driver,
+        run.substrate_kind,
+        "bmc-service-state",
+        "bounded loopback Redfish observation",
+        &serde_json::to_string_pretty(&observation)?,
+    )?;
+    readiness
+        .validated_goals
+        .retain(|goal| goal != "redfish-service");
+    if observation.service_root_valid {
+        readiness.validated_goals.push("redfish-service".into());
+    }
+    for surface in &mut readiness.surfaces {
+        if surface.name == "bmc-redfish" {
+            surface.readiness = if observation.service_root_valid {
+                SurfaceReadiness::Validated
+            } else {
+                SurfaceReadiness::Registered
+            };
+            surface.validation_note = Some(summary.clone());
+        }
+    }
+    readiness.summary = Some(summary);
+    let mut checked_run = run.clone();
+    checked_run.last_health_check_at = Some(current_timestamp_string());
+    checked_run.health_state = if observation.service_root_valid {
+        fat_core::runs::HealthState::BootedServicesReachable
+    } else {
+        fat_core::runs::HealthState::Unknown
+    };
+    store.write_run(&checked_run)?;
+    store.write_readiness_report(&readiness)?;
+    store.write_confidence_report(&build_runtime_confidence(
+        &readiness.project_id,
+        &readiness.target_id,
+        &readiness,
+        recipe,
+    ))?;
+    Ok(())
 }

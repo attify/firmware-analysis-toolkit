@@ -46,3 +46,5 @@ pub mod project {
 
     pub use crate::inventory::Architecture;
 }
+
+pub mod bmc_boot;

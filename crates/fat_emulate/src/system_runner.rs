@@ -523,7 +523,7 @@ fn allocate_gdb_address() -> String {
         .unwrap_or_else(|| "127.0.0.1:1234".to_string())
 }
 
-fn system_socket_path(launch_root: &Path, kind: &str) -> String {
+pub(crate) fn system_socket_path(launch_root: &Path, kind: &str) -> String {
     let identity = stable_prefixed_id("socket", [launch_root.to_string_lossy().as_ref(), kind]);
     let hash = identity.rsplit('-').next().unwrap_or(identity.as_str());
     Path::new("/tmp")

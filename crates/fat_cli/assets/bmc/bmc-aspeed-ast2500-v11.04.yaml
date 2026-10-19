@@ -1,0 +1,26 @@
+id: bmc-aspeed-ast2500-v11.04
+kind: rehosting-pack
+version: '1'
+modified_fixture: false
+match:
+  firmware_sha256:
+  - a6befbd5b957a7662516b2795b05c3d9176a18eb4caeeb6e059c6efdeaef4e69
+runtime:
+  substrate: system
+  bmc_boot:
+    machine: ast2500-evb
+    flash_offset: 0
+    flash_size: 33554432
+    source_sha256: a6befbd5b957a7662516b2795b05c3d9176a18eb4caeeb6e059c6efdeaef4e69
+    nic_count: 2
+    management_nic: 0
+    vendor_kernel: null
+validators:
+- goal: redfish-service
+  kind: http
+  port: 443
+  path: /redfish/v1/
+caveats:
+- QEMU emulates a subset of board devices; sensor and host-interface behavior requires
+  separate validation.
+- Flash writes are ephemeral QEMU snapshot changes.

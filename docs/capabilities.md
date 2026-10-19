@@ -61,12 +61,12 @@ JSON output uses `schema_version: edge-ai-scan/v1` and stores format-specific de
 
 A rehosting pack is a YAML file containing device-specific knowledge needed to emulate a firmware image: the QEMU machine, init repairs, paths to materialize, network mode, and readiness validators.
 
-FAT ships no packs. Device-specific knowledge is yours to supply, and a pack affects a run only after you point FAT at the directory holding it. Packs are discovered from:
+FAT embeds explicit, hash-pinned [BMC boot profiles](bmc-emulation.md), listed by `fat rehost profiles list`. General device-specific packs remain operator-supplied. Local packs are discovered from:
 
 1. any `--packs-dir <dir>` passed to `fat rehost match`, in the order given; then
 2. directories in the colon-separated `FAT_REHOSTING_PACKS` environment variable.
 
-With neither set, nothing is discovered and no pack is applied. `fat rehost match` reports which of your packs match an extracted firmware image.
+With neither directory source set, no local pack is discovered. Embedded BMC profiles require an explicit `--pack` ID. `fat rehost match` reports which of your packs match an extracted firmware image.
 
 ```bash
 fat rehost profiles validate ./my-packs/example-camera.yaml

@@ -35,8 +35,8 @@ pub enum RehostCommand {
         #[arg(long = "project")]
         project_flag: Option<PathBuf>,
         /// Directory to search for packs (repeatable). Packs are found only in
-        /// the directories given here and in `FAT_REHOSTING_PACKS`; FAT ships
-        /// no packs of its own.
+        /// the directories given here and in `FAT_REHOSTING_PACKS`. Embedded
+        /// BMC profiles require explicit selection; see `rehost profiles list`.
         #[arg(long = "packs-dir")]
         packs_dirs: Vec<PathBuf>,
         #[arg(long)]
@@ -46,6 +46,11 @@ pub enum RehostCommand {
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum RehostProfilesCommand {
+    /// List embedded, hash-pinned BMC profiles (explicit --pack selection).
+    List {
+        #[arg(long)]
+        json: bool,
+    },
     #[command(about = "Validate a local rehosting pack YAML file.")]
     Validate {
         /// Pack YAML path (positional).
@@ -92,6 +97,18 @@ pub fn run(command: RehostCommand) -> DynResult<()> {
             json,
         ),
         RehostCommand::Profiles { command } => match command {
+            RehostProfilesCommand::List { json } => {
+                let packs = builtin_bmc_packs()?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&packs)?);
+                } else {
+                    for pack in packs {
+                        let bmc = pack.runtime.as_ref().unwrap().bmc_boot.as_ref().unwrap();
+                        println!("{}  {}  {}", pack.id, bmc.mode(), bmc.machine);
+                    }
+                }
+                Ok(())
+            }
             RehostProfilesCommand::Validate { path, file, json } => {
                 validate_profile(&resolve_pack_path(path, file)?, json)
             }
@@ -162,6 +179,14 @@ fn show_profile(path: &Path, json: bool) -> DynResult<()> {
 }
 
 pub(crate) fn load_pack(path: &Path) -> DynResult<RehostingPack> {
+    if !path.exists() {
+        if let Some(pack) = builtin_bmc_packs()?
+            .into_iter()
+            .find(|pack| Some(pack.id.as_str()) == path.to_str())
+        {
+            return Ok(pack);
+        }
+    }
     let yaml = fs::read_to_string(path)
         .map_err(|err| format!("failed to read rehosting pack '{}': {err}", path.display()))?;
     parse_rehosting_pack_yaml(&yaml)
@@ -442,6 +467,9 @@ pub(crate) fn resolve_pack_for_emulate(
         }
         return Ok(Some(pack));
     }
+    if let Some(pack) = builtin_bmc_packs()?.into_iter().find(|pack| pack.id == arg) {
+        return Ok(Some(pack));
+    }
     let roots = pack_search_roots(extra_dirs);
     let discovery = discover_packs(&roots);
     match discovery
@@ -616,5 +644,58 @@ mod tests {
         let error = resolve_pack_for_emulate(Some(path.to_str().unwrap()), &[]).unwrap_err();
 
         assert!(error.to_string().contains("missing-validators"));
+    }
+}
+
+fn builtin_bmc_packs() -> DynResult<Vec<RehostingPack>> {
+    [
+        include_str!("../assets/bmc/bmc-romulus.yaml"),
+        include_str!("../assets/bmc/bmc-romulus-vendor-kernel.yaml"),
+        include_str!("../assets/bmc/bmc-tiogapass.yaml"),
+        include_str!("../assets/bmc/bmc-aspeed-ast2500-v11.04.yaml"),
+        include_str!("../assets/bmc/bmc-asus-bhs-1.20.02.yaml"),
+    ]
+    .into_iter()
+    .map(|text| {
+        let pack = parse_rehosting_pack_yaml(text)?;
+        let validation = validate_rehosting_pack(&pack);
+        if !validation.valid {
+            return Err(render_validation_errors(&pack.id, &validation).into());
+        }
+        Ok(pack)
+    })
+    .collect()
+}
+
+#[cfg(test)]
+mod bmc_profile_tests {
+    use super::*;
+    #[test]
+    fn bmc_profiles_are_valid_and_resolve_by_id() {
+        for pack in builtin_bmc_packs().unwrap() {
+            assert!(validate_rehosting_pack(&pack).valid);
+            assert_eq!(
+                resolve_pack_for_emulate(Some(&pack.id), &[]).unwrap(),
+                Some(pack.clone())
+            );
+            assert_eq!(load_pack(Path::new(&pack.id)).unwrap(), pack);
+            let mut unsupported = pack.clone();
+            unsupported.validators[0].path = Some("/".into());
+            assert!(!validate_rehosting_pack(&unsupported).valid);
+            let mut altered = pack.clone();
+            if altered
+                .runtime
+                .as_ref()
+                .unwrap()
+                .bmc_boot
+                .as_ref()
+                .unwrap()
+                .vendor_kernel
+                .is_some()
+            {
+                altered.modified_fixture = false;
+                assert!(!validate_rehosting_pack(&altered).valid);
+            }
+        }
     }
 }

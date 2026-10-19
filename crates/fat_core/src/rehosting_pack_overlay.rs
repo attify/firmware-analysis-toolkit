@@ -18,6 +18,7 @@ pub struct PackOverlay {
     pub requested_substrate: Option<String>,
     pub partition_roles: Vec<PackPartitionRole>,
     pub qemu_machine: Option<String>,
+    pub bmc_boot: Option<crate::bmc_boot::BmcBootConfig>,
     pub network_mode: Option<String>,
     pub network_interface: Option<String>,
     pub network_fallback_ip: Option<String>,
@@ -43,6 +44,12 @@ impl PackOverlay {
         };
 
         if let Some(runtime) = &pack.runtime {
+            overlay.bmc_boot = runtime.bmc_boot.clone();
+            if let Some(bmc) = &runtime.bmc_boot {
+                overlay
+                    .applied
+                    .push(format!("BMC {} on {}", bmc.mode(), bmc.machine));
+            }
             if let Some(substrate) = &runtime.substrate {
                 overlay.requested_substrate = Some(substrate.clone());
                 overlay.applied.push(format!("substrate = {substrate}"));
@@ -126,6 +133,9 @@ impl PackOverlay {
     /// not duplicate entries. Validators are merged by goal; other collections
     /// only gain entries they don't already contain.
     pub fn apply_to_recipe(&self, recipe: &mut RehostingRecipe) {
+        if let Some(bmc) = &self.bmc_boot {
+            recipe.bmc_boot = Some(bmc.clone());
+        }
         if let Some(machine) = &self.qemu_machine {
             recipe.qemu_machine = Some(machine.clone());
         }
@@ -207,6 +217,9 @@ impl PackOverlay {
             caveats: self.caveats.clone(),
             ..RehostingCapabilityReport::default()
         };
+        if self.bmc_boot.is_some() {
+            report.supported_actions.push("bmc-boot".into());
+        }
         if self.qemu_machine.is_some() {
             report.supported_actions.push("qemu-machine".into());
         }

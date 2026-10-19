@@ -1,8 +1,7 @@
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::fs;
-use std::io::Read;
-use std::net::{Shutdown, TcpStream};
+use std::net::TcpStream;
 use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
 
@@ -174,6 +173,14 @@ pub fn run_shell(
         return run_emux_shell(&context, command);
     }
     let target = resolve_shell_target(&context.view)?;
+    if let Some(path) = target.uri.strip_prefix("unix://") {
+        if command.is_some() {
+            return Err(
+                "serial console requires interactive login; omit --command to attach".into(),
+            );
+        }
+        return attach_unix_console(path);
+    }
     let ssh_binary = find_ssh_binary().ok_or("ssh is unavailable on this host")?;
     let ssh_target = format!("root@{}", target.host);
     let port = target.port.to_string();
@@ -242,14 +249,7 @@ pub fn run_monitor(
     let target = resolve_monitor_target(&context.view)?;
 
     if let Some(command_text) = command {
-        let mut stream = TcpStream::connect((target.host.as_str(), target.port))?;
-        use std::io::Write as _;
-        stream.write_all(command_text.as_bytes())?;
-        stream.write_all(b"\n")?;
-        stream.shutdown(Shutdown::Write)?;
-
-        let mut stdout = String::new();
-        stream.read_to_string(&mut stdout)?;
+        let stdout = monitor_command(&target, command_text)?;
         print!("{stdout}");
         let stderr = String::new();
 
@@ -280,6 +280,9 @@ pub fn run_monitor(
 
         Ok(())
     } else {
+        if let Some(path) = target.uri.strip_prefix("unix://") {
+            return attach_unix_console(path);
+        }
         let monitor_binary =
             find_monitor_binary().ok_or("monitor attach utility is unavailable on this host")?;
         let status = ProcessCommand::new(&monitor_binary)
@@ -502,6 +505,19 @@ pub(crate) fn build_surface_report(
         overlay_surface_readiness(&mut surfaces, readiness_report);
     }
 
+    // Endpoint records and successful probes are history after a run ends.
+    // Do not advertise them as current attachable/validated surfaces.
+    if matches!(
+        view.run.status,
+        RunStatus::Completed
+            | RunStatus::DegradedCompleted
+            | RunStatus::Failed
+            | RunStatus::Cancelled
+            | RunStatus::TimedOut
+            | RunStatus::CleanupFailed
+    ) {
+        surfaces.clear();
+    }
     let mut capabilities = Vec::new();
     if let Some(contract) = BackendRegistry::with_test_backends()
         .driver_contracts()
@@ -1108,7 +1124,7 @@ fn resolve_shell_target(view: &run_cmd::RuntimeView) -> DynResult<ShellAttachTar
         .ok_or("selected run does not expose a shell surface")?;
 
     if let Some(uri) = &endpoint.uri {
-        if !uri.starts_with("ssh://") {
+        if !uri.starts_with("ssh://") && !uri.starts_with("unix:///") {
             return Err(format!("unsupported shell surface URI: {uri}").into());
         }
     }
@@ -1132,7 +1148,7 @@ fn resolve_monitor_target(view: &run_cmd::RuntimeView) -> DynResult<MonitorAttac
         .ok_or("selected run does not expose a monitor surface")?;
 
     if let Some(uri) = &endpoint.uri {
-        if !uri.starts_with("tcp://") {
+        if !uri.starts_with("tcp://") && !uri.starts_with("unix:///") {
             return Err(format!("unsupported monitor surface URI: {uri}").into());
         }
     }
@@ -1869,5 +1885,158 @@ fn run_status_label(status: fat_core::runs::RunStatus) -> &'static str {
         fat_core::runs::RunStatus::Cancelled => "cancelled",
         fat_core::runs::RunStatus::TimedOut => "timed-out",
         fat_core::runs::RunStatus::CleanupFailed => "cleanup-failed",
+    }
+}
+
+fn attach_unix_console(path: &str) -> DynResult<()> {
+    let nc = find_monitor_binary()
+        .ok_or("netcat with Unix-socket support is required for console attach")?;
+    let status = ProcessCommand::new(nc).args(["-U", path]).status()?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("console attach exited with {status}").into())
+    }
+}
+
+fn monitor_command(target: &MonitorAttachTarget, command: &str) -> DynResult<String> {
+    let timeout = Some(std::time::Duration::from_secs(2));
+    if let Some(path) = target.uri.strip_prefix("unix://") {
+        #[cfg(unix)]
+        {
+            let mut stream = std::os::unix::net::UnixStream::connect(path)?;
+            stream.set_read_timeout(timeout)?;
+            stream.set_write_timeout(timeout)?;
+            return monitor_exchange(&mut stream, command);
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = path;
+            return Err("Unix monitor sockets are unavailable on this platform".into());
+        }
+    }
+    let mut stream = TcpStream::connect((target.host.as_str(), target.port))?;
+    stream.set_read_timeout(timeout)?;
+    stream.set_write_timeout(timeout)?;
+    monitor_exchange(&mut stream, command)
+}
+
+fn monitor_exchange(
+    stream: &mut (impl std::io::Read + std::io::Write),
+    command: &str,
+) -> DynResult<String> {
+    // Drain greeting before the command so its prompt cannot masquerade as completion.
+    let greeting = read_monitor_prompt(stream)?;
+    stream.write_all(command.as_bytes())?;
+    stream.write_all(b"\n")?;
+    let response = read_monitor_prompt(stream)?;
+    Ok(format!("{greeting}{response}"))
+}
+
+fn read_monitor_prompt(stream: &mut impl std::io::Read) -> DynResult<String> {
+    let mut out = Vec::new();
+    let mut chunk = [0u8; 1024];
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+    while out.len() < 65536 && std::time::Instant::now() < deadline {
+        match stream.read(&mut chunk) {
+            Ok(0) => break,
+            Ok(count) => {
+                out.extend_from_slice(&chunk[..count]);
+                if out.ends_with(b"(qemu) ") {
+                    return Ok(String::from_utf8_lossy(&out).into_owned());
+                }
+            }
+            Err(error) => return Err(format!("QEMU monitor response incomplete: {error}").into()),
+        }
+    }
+    Err("QEMU monitor response ended before a prompt or exceeded its limit".into())
+}
+
+#[cfg(all(test, unix))]
+mod bmc_monitor_tests {
+    use super::*;
+    #[test]
+    fn bmc_stopped_surfaces_do_not_reuse_successful_probe() {
+        let launched = fat_emulate::EmulationPlan::new("bmc", "qemu-direct", vec![])
+            .unwrap()
+            .launch();
+        let mut view = run_cmd::RuntimeView {
+            session: launched.session_record().clone(),
+            run: launched.run_record().clone(),
+            diagnostics: vec![],
+        };
+        view.run.status = RunStatus::Running;
+        view.run.active_endpoints = vec![RuntimeEndpoint::new(
+            RuntimeEndpointKind::PortForward,
+            "bmc-redfish",
+            "127.0.0.1",
+            24443,
+        )
+        .with_uri("https://127.0.0.1:24443/redfish/v1/")];
+        let surface = RuntimeSurfaceRecord::new(
+            "p",
+            "t",
+            &view.session.session_id,
+            &view.run.run_id,
+            "bmc-redfish",
+            "port-forward",
+            "https",
+            SurfaceReadiness::Validated,
+        )
+        .with_uri("https://127.0.0.1:24443/redfish/v1/");
+        let readiness = ReadinessReport::new(
+            "p",
+            "t",
+            &view.session.session_id,
+            &view.run.run_id,
+            vec!["redfish-service".into()],
+            vec![surface],
+        );
+        assert_eq!(
+            build_surface_report(&view, Some(&readiness)).surfaces[0].state,
+            DebugSurfaceState::Validated
+        );
+        for status in [
+            RunStatus::Completed,
+            RunStatus::Failed,
+            RunStatus::Cancelled,
+            RunStatus::TimedOut,
+        ] {
+            view.run.status = status;
+            assert!(build_surface_report(&view, Some(&readiness))
+                .surfaces
+                .is_empty());
+        }
+    }
+    #[test]
+    fn bmc_monitor_uses_recorded_unix_socket() {
+        let dir = tempfile::Builder::new()
+            .prefix("fat-monitor-")
+            .tempdir_in("/tmp")
+            .unwrap();
+        let socket = dir.path().join("m.sock");
+        let listener = std::os::unix::net::UnixListener::bind(&socket).unwrap();
+        let server = std::thread::spawn(move || {
+            use std::io::{Read, Write};
+            let (mut connection, _) = listener.accept().unwrap();
+            connection.write_all(b"QEMU monitor\r\n(qemu) ").unwrap();
+            let mut request = [0; 128];
+            let n = connection.read(&mut request).unwrap();
+            assert!(String::from_utf8_lossy(&request[..n]).starts_with("info status"));
+            connection
+                .write_all(b"VM status: running\r\n(qemu) ")
+                .unwrap();
+        });
+        let result = monitor_command(
+            &MonitorAttachTarget {
+                host: "127.0.0.1".into(),
+                port: 1,
+                uri: format!("unix://{}", socket.display()),
+            },
+            "info status",
+        )
+        .unwrap();
+        assert!(result.contains("VM status: running"));
+        server.join().unwrap();
     }
 }
