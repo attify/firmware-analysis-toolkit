@@ -42,6 +42,8 @@ mod android_cmd;
 mod benchmark_cmd;
 mod bmc_cmd;
 mod bmc_emulate;
+mod bmc_process;
+mod bmc_session;
 mod bootloader_handoff_cmd;
 mod bundle_reality_cmd;
 mod carve_cmd;
@@ -1911,6 +1913,23 @@ enum ChainCommand {
 
 #[derive(Debug, Clone, Subcommand)]
 enum DebugCommand {
+    /// Attach GDB to a guest process through a temporary loopback SSH forward (Unix hosts).
+    Process(bmc_process::ProcessArgs),
+    /// Test Redfish sessions and ReadOnly role denial using disposable lab accounts.
+    RedfishSession {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        session_id: Option<String>,
+        /// JSON credentials and account paths; passwords never enter command arguments or reports.
+        #[arg(long)]
+        fixture: PathBuf,
+        /// Permit the positive control to disable and restore the disposable target account.
+        #[arg(long)]
+        allow_account_mutation: bool,
+        #[arg(long)]
+        json: bool,
+    },
     Surfaces {
         #[arg(long)]
         project: PathBuf,
@@ -2362,6 +2381,20 @@ fn run() -> DynResult<()> {
         Some(Command::SinkDiscovery(args)) => sink_discovery_cmd::run(args),
         Some(Command::Doctor { strict, json }) => doctor_cmd::run(strict, json),
         Some(Command::Debug { subject }) => match subject {
+            DebugCommand::Process(args) => bmc_process::run(args),
+            DebugCommand::RedfishSession {
+                project,
+                session_id,
+                fixture,
+                allow_account_mutation,
+                json,
+            } => bmc_session::run(
+                &project,
+                session_id.as_deref(),
+                &fixture,
+                allow_account_mutation,
+                json,
+            ),
             DebugCommand::Surfaces {
                 project,
                 session_id,

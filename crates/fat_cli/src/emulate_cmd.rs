@@ -1917,7 +1917,7 @@ fn runtime_staging_root(project_dir: &Path, plan: &fat_emulate::EmulationPlan) -
         .join(run_key)
 }
 
-fn load_rehosting_recipe_record(
+pub(crate) fn load_rehosting_recipe_record(
     store: &RuntimeStore,
     session_id: &str,
     run_id: &str,
