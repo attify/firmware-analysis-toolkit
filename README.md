@@ -25,14 +25,14 @@ Some of the features include classifying unknown firmware, extracts filesystems,
 
 ## Quick start
 
-Download a binary bundle from [Releases](https://github.com/attify/firmware-analysis-toolkit/releases/latest), which already contains the matching `share/fat` runtime data, or install the executable with Cargo:
+Download a binary bundle from [Releases](https://github.com/attify/firmware-analysis-toolkit/releases/latest), which already contains the matching `share/fat` runtime data, or install the executable from [crates.io](https://crates.io/crates/firmware-analysis-toolkit) with Cargo:
 
 ```bash
 # Fast path: fetch the prebuilt archive for this platform (requires cargo-binstall).
-cargo binstall --git https://github.com/attify/firmware-analysis-toolkit firmware-analysis-toolkit
+cargo binstall firmware-analysis-toolkit
 
 # From source: compiles the full dependency tree (Rust 1.91 or newer plus a C compiler).
-cargo install --git https://github.com/attify/firmware-analysis-toolkit --tag v2.1.0 --locked firmware-analysis-toolkit
+cargo install --locked firmware-analysis-toolkit
 ```
 
 Cargo installs only the `fat` executable. Install the runtime-data bundle for the installed version once; `--release` downloads the matching `fat-data-<version>.zip`, verifies its SHA-256, and activates it:

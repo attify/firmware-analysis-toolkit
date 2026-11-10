@@ -38,8 +38,6 @@ pre-release-replacements = [
     { file = "../../share/fat/manifest.json", search = '"compatible_fat": "[^"]+"', replace = '"compatible_fat": "={{version}}"', exactly = 1, prerelease = true },
     { file = "../../CITATION.cff", search = '(?m)^version: "[^"]+"$', replace = 'version: "{{version}}"', exactly = 1, prerelease = true },
     { file = "../../README.md", search = 'git clone --branch v[^ ]+ --depth 1', replace = 'git clone --branch v{{version}} --depth 1', exactly = 1 },
-    { file = "../../README.md", search = 'cargo install --git https://github\.com/attify/firmware-analysis-toolkit --tag v[^ ]+ --locked firmware-analysis-toolkit', replace = 'cargo install --git https://github.com/attify/firmware-analysis-toolkit --tag v{{version}} --locked firmware-analysis-toolkit', exactly = 1 },
-    { file = "../../INSTALL.md", search = 'cargo install --git https://github\.com/attify/firmware-analysis-toolkit --tag v[^ ]+ --locked firmware-analysis-toolkit', replace = 'cargo install --git https://github.com/attify/firmware-analysis-toolkit --tag v{{version}} --locked firmware-analysis-toolkit', exactly = 1 },
 ]
 
 [dependencies]

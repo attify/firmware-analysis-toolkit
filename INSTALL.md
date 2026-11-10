@@ -37,17 +37,18 @@ The Windows binary supports native analysis commands; workflows using Linux file
 
 ## Cargo installations
 
+FAT is published on [crates.io](https://crates.io/crates/firmware-analysis-toolkit) as `firmware-analysis-toolkit`.
 `cargo install` and `cargo binstall` install only the `fat` executable; neither provides `share/fat`.
 With [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) available, the prebuilt archive for this platform is fetched instead of compiling:
 
 ```bash
-cargo binstall --git https://github.com/attify/firmware-analysis-toolkit firmware-analysis-toolkit
+cargo binstall firmware-analysis-toolkit
 ```
 
 Compiling from source needs Rust 1.91 or newer and a C compiler:
 
 ```bash
-cargo install --git https://github.com/attify/firmware-analysis-toolkit --tag v2.1.0 --locked firmware-analysis-toolkit
+cargo install --locked firmware-analysis-toolkit
 ```
 
 Then install the runtime data for the installed version:
