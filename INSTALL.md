@@ -47,7 +47,7 @@ cargo binstall --git https://github.com/attify/firmware-analysis-toolkit firmwar
 Compiling from source needs Rust 1.91 or newer and a C compiler:
 
 ```bash
-cargo install --git https://github.com/attify/firmware-analysis-toolkit --tag v2.0.1 --locked firmware-analysis-toolkit
+cargo install --git https://github.com/attify/firmware-analysis-toolkit --tag v2.1.0 --locked firmware-analysis-toolkit
 ```
 
 Then install the runtime data for the installed version:

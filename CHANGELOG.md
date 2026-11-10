@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [2.1.0]
+
+See the [release notes](release-notes/v2.1.0.md) for installation and upgrade instructions.
+
 ### Added
 
 - `fat data install --release` downloads the `fat-data-<version>.zip` and `.sha256` assets for the running executable, verifies them, and activates the data, so a `cargo install` or `cargo binstall` setup needs one follow-up command. `--archive` still installs a local directory or ZIP for offline or pinned installs.

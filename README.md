@@ -32,7 +32,7 @@ Download a binary bundle from [Releases](https://github.com/attify/firmware-anal
 cargo binstall --git https://github.com/attify/firmware-analysis-toolkit firmware-analysis-toolkit
 
 # From source: compiles the full dependency tree (Rust 1.91 or newer plus a C compiler).
-cargo install --git https://github.com/attify/firmware-analysis-toolkit --tag v2.0.1 --locked firmware-analysis-toolkit
+cargo install --git https://github.com/attify/firmware-analysis-toolkit --tag v2.1.0 --locked firmware-analysis-toolkit
 ```
 
 Cargo installs only the `fat` executable. Install the runtime-data bundle for the installed version once; `--release` downloads the matching `fat-data-<version>.zip`, verifies its SHA-256, and activates it:
@@ -45,7 +45,7 @@ fat doctor
 Building this checkout (development, or for the features listed under [Unreleased](CHANGELOG.md#unreleased)):
 
 ```bash
-git clone --branch v2.0.1 --depth 1 https://github.com/attify/firmware-analysis-toolkit.git
+git clone --branch v2.1.0 --depth 1 https://github.com/attify/firmware-analysis-toolkit.git
 cd firmware-analysis-toolkit
 cargo build --release --locked
 cargo install --path crates/fat_cli --locked
