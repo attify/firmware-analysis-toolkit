@@ -10,7 +10,7 @@ repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
 description = "Shared models and SQLite persistence for FAT"
-publish = false
+publish.workspace = true
 
 [lib]
 name = "fat_core"

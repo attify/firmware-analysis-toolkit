@@ -26,6 +26,7 @@ readme = "README.md"
 repository = "https://github.com/attify/firmware-analysis-toolkit"
 keywords = ["firmware", "security", "iot", "emulation", "reverse-engineering"]
 categories = ["command-line-utilities", "development-tools"]
+publish = ["crates-io"]
 
 # Design-level lints allowed workspace-wide. These reflect deliberate choices
 # (rich command signatures, large domain error enums, expressive graph types)

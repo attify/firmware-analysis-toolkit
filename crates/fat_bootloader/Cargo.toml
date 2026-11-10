@@ -10,7 +10,7 @@ repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
 description = "Bootloader profile loading and boot-plan modeling for FAT"
-publish = false
+publish.workspace = true
 
 [lib]
 name = "fat_bootloader"

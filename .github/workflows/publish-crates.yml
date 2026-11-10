@@ -1,0 +1,49 @@
+name: Publish to crates.io
+
+# Explicit maintainer dispatch: publishes every workspace crate for an existing
+# release tag in dependency order. The first publish of a new version needs the
+# GitHub release assets to exist first, because the runtime-data bundle pins the
+# exact executable version.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version (must match Cargo.toml and tag v<version>)
+        required: true
+        type: string
+      dry_run:
+        description: Run packaging checks without uploading
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crates-io-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-22.04
+    environment: crates-io
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: refs/tags/v${{ inputs.version }}
+      - name: Verify the tag matches the workspace version
+        run: |
+          tag_version="$(awk -F'"' '/^version = "/ { print $2; exit }' Cargo.toml)"
+          test "$tag_version" = "${{ inputs.version }}"
+      - name: Publish workspace crates
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            bash scripts/publish-crates.sh --dry-run
+          else
+            bash scripts/publish-crates.sh
+          fi

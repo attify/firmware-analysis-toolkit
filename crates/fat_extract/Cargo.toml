@@ -10,7 +10,7 @@ repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
 description = "Bounded firmware container and filesystem extraction for FAT"
-publish = false
+publish.workspace = true
 
 [lib]
 name = "fat_extract"

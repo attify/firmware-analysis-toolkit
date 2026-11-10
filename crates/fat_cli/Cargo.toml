@@ -10,7 +10,7 @@ repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
 description = "FAT — command-line firmware analysis toolkit"
-publish = false
+publish.workspace = true
 
 [package.metadata.dist]
 dist = true

@@ -10,7 +10,7 @@ repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
 description = "Firmware-wide taint analysis via Ghidra decompile + Joern c2cpg"
-publish = false
+publish.workspace = true
 
 [lib]
 name = "fat_taint"

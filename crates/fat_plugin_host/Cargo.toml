@@ -10,7 +10,7 @@ repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
 description = "Plugin discovery, orchestration, and dispatch for FAT"
-publish = false
+publish.workspace = true
 
 [lib]
 name = "fat_plugin_host"

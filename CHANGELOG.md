@@ -28,6 +28,7 @@
 - Added automatic installation of Sasquatch and lzop for SquashFS and LZO extraction.
 - Raised the minimum supported Rust version to 1.91.
 - Installation documentation now leads with the prebuilt release archives and `cargo binstall`; `cargo install` is documented as the source-build path, and the CLI carries `cargo binstall` metadata so the matching cargo-dist archive is fetched instead of compiling.
+- FAT publishes to crates.io as `firmware-analysis-toolkit`, so `cargo install` and `cargo binstall firmware-analysis-toolkit` install the CLI; the `fat-toolkit-*` crates are published as its dependencies. `scripts/publish-crates.sh` publishes them in dependency order, and the `Publish to crates.io` workflow exposes it as a maintainer dispatch.
 
 ### Fixed
 

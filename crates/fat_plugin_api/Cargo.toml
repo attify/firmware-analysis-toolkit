@@ -10,7 +10,7 @@ repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
 description = "Plugin system type definitions for FAT"
-publish = false
+publish.workspace = true
 
 [lib]
 name = "fat_plugin_api"

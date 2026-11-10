@@ -35,7 +35,8 @@ gh auth status
 ```
 
 GitHub CLI (`gh`) is installed separately through its [installation guide](https://cli.github.com/manual/installation).
-The workspace remains `publish = false`; this workflow distributes FAT through GitHub.
+All workspace crates are publishable; the GitHub release remains the source of the binary archives and the runtime-data bundle, and [Publish to crates.io](#publish-to-cratesio) covers the registry step.
+Registry publishing uses a crates.io token from `cargo login` locally, or the `CARGO_REGISTRY_TOKEN` secret through the `Publish to crates.io` workflow.
 
 ## Prepare a version
 
@@ -168,3 +169,30 @@ gh release edit "$release_tag" --prerelease=false --latest
 For a preview, use `--prerelease=true --latest=false` instead.
 Verify the published tag, release notes, asset list, and checksums by downloading the release assets.
 The GitHub sidebar and README badge follow the latest regular release.
+
+## Publish to crates.io
+
+crates.io is a second distribution channel; the GitHub release remains the source of the binary archives and the runtime-data bundle.
+Publish the workspace crates from the release tag only after the GitHub release and its `fat-data-VERSION.zip` asset exist, because the data bundle pins the exact executable version.
+
+```bash
+cargo login            # once; the workflow uses the CARGO_REGISTRY_TOKEN secret
+release_version=2.1.0
+git switch --detach "v$release_version"
+bash scripts/publish-crates.sh --dry-run
+bash scripts/publish-crates.sh
+```
+
+The script publishes in dependency order, skips versions already visible in the index, and waits for each crate before publishing its dependents.
+crates.io throttles new crate names to one every ten minutes after a burst of five, so the first publish of the workspace takes roughly eighty minutes; later releases are version updates and complete in one run.
+A run that stops partway resumes from the same tag with the same command.
+
+Verify the release:
+
+```bash
+cargo install --locked firmware-analysis-toolkit --version "$release_version" --root /tmp/fat-crates
+/tmp/fat-crates/bin/fat data install --release
+```
+
+Only `fat-toolkit-plugin-api` is a supported library API; the other `fat-toolkit-*` crates are published because the CLI depends on them and may change between minor releases.
+A published version cannot be deleted: yank the whole set with `cargo yank` and publish a patch, and never yank a single crate while its dependents are published.

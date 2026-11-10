@@ -1,8 +1,10 @@
-# One FAT version across the workspace; distribution happens through GitHub.
+# One FAT version across the workspace; crates.io publishing runs through
+# scripts/publish-crates.sh, so cargo-release itself never uploads.
 shared-version = true
 dependent-version = "upgrade"
 consolidate-commits = true
 publish = false
+registry = "crates-io"
 push = false
 tag = false
 tag-name = "v{{version}}"

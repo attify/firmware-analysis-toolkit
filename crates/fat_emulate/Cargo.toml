@@ -10,7 +10,7 @@ repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
 description = "Emulation orchestration (preflight, plan, session) for FAT"
-publish = false
+publish.workspace = true
 
 [lib]
 name = "fat_emulate"

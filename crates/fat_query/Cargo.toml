@@ -10,7 +10,7 @@ repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
 description = "Evidence IR and multi-adapter query engine for FAT"
-publish = false
+publish.workspace = true
 
 [lib]
 name = "fat_query"
