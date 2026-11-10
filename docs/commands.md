@@ -52,7 +52,7 @@ For firmware with case-distinct names, create the project on a case-sensitive vo
 | `r2-triage` | Profile a binary with radare2 and rank audit targets |
 | `sink-discovery`, `handler-table` | Find sink candidates and URL or command dispatch tables |
 | `identify-launcher`, `inspect-handoff` | Detect thin launchers and inspect downstream implementation artifacts |
-| `decompile` | Decompile one function mechanically with r2ghidra |
+| `decompile` | Decompile one function with r2ghidra, applying r2 rename/comment scripts |
 | `taint`, `taint-query`, `taint-cross` | Trace data flow, ask precise path questions, and stitch cross-binary state |
 | `taint --lang shell` | Trace source-to-sink flows through shell scripts with a tree-sitter-bash AST |
 | `sdk-trace`, `bundle-reality`, `runtime-plane` | Inspect dependencies and compare runtime metadata with filesystem reality |
@@ -73,11 +73,17 @@ For firmware with case-distinct names, create the project on a case-sensitive vo
 | --- | --- |
 | `preflight` | Rank emulator backends and host readiness |
 | `emulate` | Start, inspect, or stop a firmware runtime |
-| `rehost`, `experiment`, `rehosting-trace` | Match, validate, and explain rehosting recipes and experiments |
+| `rehost`, `experiment`, `rehosting-trace` | Match, validate, and explain rehosting recipes and experiments; record pinned external campaign replays |
 | `debug`, `observe` | Inspect runtime processes, services, networking, shells, maps, monitors, and GDB surfaces |
 | `instrument-hooks`, `trace-ingest`, `probe` | Configure QEMU hooks, ingest traces, and compare runtime events with static findings |
 | `discover`, `hsm` | Produce family-scoped leads and query derived state-machine models |
 | `benchmark` | Score and report analysis and emulation benchmarks |
+
+`fat experiment external validate` checks the pinned setup, replay input,
+retained evidence, and cleanup contract for a campaign owned by another engine.
+`fat experiment external run` executes one bounded replay and stores its input,
+logs, result, and cleanup outcome in a FAT project. See
+[External campaign evidence](external-campaigns.md).
 
 ## Graph and label views
 

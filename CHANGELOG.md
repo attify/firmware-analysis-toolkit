@@ -4,6 +4,17 @@
 
 ### Added
 
+- `fat data install --release` downloads the `fat-data-<version>.zip` and `.sha256` assets for the running executable, verifies them, and activates the data, so a `cargo install` or `cargo binstall` setup needs one follow-up command. `--archive` still installs a local directory or ZIP for offline or pinned installs.
+
+- `decompile --script` applies repeatable r2 rename/comment scripts after
+  analysis and before `pdg`, so `afn`, `afvn`, and `CC` names reach the emitted
+  pseudocode. Missing scripts and failed script lines report their path and line.
+
+- `experiment external validate` checks pinned external campaign setup, replay
+  inputs, evidence, timeouts, and cleanup declarations. `experiment external
+  run` executes one exact argv replay and stores its input, logs, outcome, and
+  cleanup result in the existing FAT session and artifact model.
+
 - `debug redfish-session` tests session creation, ReadOnly cross-account denial, an administrator positive control, target restoration and token revocation on an emulated BMC. `debug process` attaches userspace GDB over an owned temporary SSH forward and records process identity, detach and cleanup results.
 
 - Hash-pinned BMC profiles for native full-flash and vendor-kernel boot, including verified FIT kernel/DTB/initramfs assets, explicit DTB adaptations, private snapshot flash, and fresh loopback Redfish readiness observations.
@@ -16,8 +27,12 @@
 - Replaced Binwalk with binwalk-ng 4.0.0 in the source installer, including upgrades of existing installations.
 - Added automatic installation of Sasquatch and lzop for SquashFS and LZO extraction.
 - Raised the minimum supported Rust version to 1.91.
+- Installation documentation now leads with the prebuilt release archives and `cargo binstall`; `cargo install` is documented as the source-build path, and the CLI carries `cargo binstall` metadata so the matching cargo-dist archive is fetched instead of compiling.
 
 ### Fixed
+
+- `decompile` reports r2ghidra's install hint as an error instead of writing it
+  to the raw C output as if it were pseudocode.
 
 - Native debug commands attach to recorded Unix serial/monitor sockets; inactive runs no longer advertise historical validated surfaces as current.
 

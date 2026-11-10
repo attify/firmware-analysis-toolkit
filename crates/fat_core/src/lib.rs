@@ -13,6 +13,7 @@ pub mod diff;
 pub mod discovery;
 pub mod experiment;
 pub mod experiment_selector;
+pub mod external_campaign;
 pub mod finding;
 pub mod fingerprint;
 pub mod firmware_diff;

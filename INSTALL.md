@@ -35,7 +35,43 @@ export PATH="$PWD:$PATH"
 On Windows, use `Get-FileHash` to compare the ZIP's SHA-256 with its `.sha256` file, extract with `Expand-Archive`, and run `.\fat.exe data verify` from the extracted directory.
 The Windows binary supports native analysis commands; workflows using Linux filesystem semantics or external Unix tools should run under WSL with the Linux build.
 
-For a Cargo-installed executable, download the same version's `fat-data-VERSION.zip` and run `fat data install --archive ./fat-data-VERSION.zip`.
+## Cargo installations
+
+`cargo install` and `cargo binstall` install only the `fat` executable; neither provides `share/fat`.
+With [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) available, the prebuilt archive for this platform is fetched instead of compiling:
+
+```bash
+cargo binstall --git https://github.com/attify/firmware-analysis-toolkit firmware-analysis-toolkit
+```
+
+Compiling from source needs Rust 1.91 or newer and a C compiler:
+
+```bash
+cargo install --git https://github.com/attify/firmware-analysis-toolkit --tag v2.0.1 --locked firmware-analysis-toolkit
+```
+
+Then install the runtime data for the installed version:
+
+```bash
+fat data install --release
+fat data verify
+fat doctor
+```
+
+`--release` downloads `fat-data-<version>.zip` and its `.sha256` from the GitHub release, verifies the digest and the manifest, and activates the data.
+To install from a downloaded archive instead (offline or pinned installs):
+
+```bash
+version="$(fat --version | awk '{print $2}')"
+base="https://github.com/attify/firmware-analysis-toolkit/releases/download/v$version"
+curl -fLO "$base/fat-data-$version.zip" -fLO "$base/fat-data-$version.zip.sha256"
+[ "$(cat "fat-data-$version.zip.sha256")" = "$(shasum -a 256 "fat-data-$version.zip" | cut -d' ' -f1)" ]
+fat data install --archive "./fat-data-$version.zip"
+```
+
+Use `sha256sum` in place of `shasum -a 256` on Linux.
+Installed data lands in the platform user data root (`~/Library/Application Support/FAT` on macOS, `$XDG_DATA_HOME/fat` or `~/.local/share/fat` on Linux, `%LOCALAPPDATA%\FAT` on Windows) and is discovered automatically; set `FAT_DATA_DIR` to use an unversioned tree instead.
+Without the bundle, identification, inspection, carving, and analysis work, while kernel recipes, bootloader profiles, emulation, and Android helpers report a missing runtime resource.
 The source installer below installs both the executable and its runtime data.
 
 ## Upgrading from FAT 1.x

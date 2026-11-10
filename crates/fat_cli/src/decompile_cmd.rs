@@ -16,6 +16,7 @@ struct RawDecompileReport {
     binary: String,
     function_address: String,
     decompiler: &'static str,
+    scripts: Vec<String>,
     loader_hints: LoaderHintReport,
     raw_output: String,
 }
@@ -49,6 +50,7 @@ pub fn run(
     arch: Option<&str>,
     base: Option<&str>,
     family: Option<&str>,
+    scripts: &[PathBuf],
     output_dir: Option<&Path>,
     json: bool,
     context_depth: usize,
@@ -56,12 +58,13 @@ pub fn run(
     if !file.is_file() {
         return Err(format!("file not found: {}", file.display()).into());
     }
+    validate_scripts(scripts)?;
 
     let address = parse_hex_address(function_addr)?;
     let user_base = parse_base_address(base)?;
     let loader_hints = resolve_loader_hints(file, arch, user_base, family)
         .map_err(|error| -> Box<dyn Error> { error.into() })?;
-    let raw_output = decompile_function(file, address, context_depth, &loader_hints)?;
+    let raw_output = decompile_function(file, address, context_depth, &loader_hints, scripts)?;
     let address_text = format!("0x{address:08x}");
     let binary = file
         .file_name()
@@ -82,6 +85,10 @@ pub fn run(
             binary,
             function_address: address_text,
             decompiler: "r2ghidra",
+            scripts: scripts
+                .iter()
+                .map(|script| script.display().to_string())
+                .collect(),
             loader_hints: (&loader_hints).into(),
             raw_output,
         };
@@ -114,7 +121,7 @@ pub(crate) fn raw_decompile_to_string(
     let user_base = parse_base_address(base)?;
     let loader_hints = resolve_loader_hints(file, arch, user_base, family)
         .map_err(|error| -> Box<dyn Error> { error.into() })?;
-    decompile_function(file, address, context_depth, &loader_hints)
+    decompile_function(file, address, context_depth, &loader_hints, &[])
 }
 
 fn decompile_function(
@@ -122,6 +129,7 @@ fn decompile_function(
     address: u64,
     _context_depth: usize,
     loader_hints: &LoaderHints,
+    scripts: &[PathBuf],
 ) -> DynResult<String> {
     let file_text = file.to_str().ok_or("file path is not valid UTF-8")?;
     let spawn_args = leak_spawn_args(&build_spawn_args(loader_hints));
@@ -134,18 +142,65 @@ fn decompile_function(
     session
         .cmd("aaa")
         .map_err(|error| format!("r2 analysis failed: {error}"))?;
+    apply_scripts(&mut session, scripts)?;
     let output = session
         .cmd(&format!("s {address:#x}; af; pdg"))
         .map_err(|error| format!("r2ghidra decompilation failed: {error}"))?;
     session.close();
 
-    if output.trim().is_empty() {
+    ensure_pseudocode(address, &output)?;
+    Ok(output)
+}
+
+fn ensure_pseudocode(address: u64, output: &str) -> DynResult<()> {
+    let output = output.trim();
+    if output.is_empty() {
         return Err(format!(
             "r2ghidra produced no output for function at {address:#x}; ensure r2ghidra is installed and provide explicit loader hints for raw firmware"
         )
         .into());
     }
-    Ok(output)
+    if output.starts_with("ERROR:") || output.contains("r2pm -ci r2ghidra") {
+        return Err(
+            format!("r2ghidra could not decompile function at {address:#x}: {output}").into(),
+        );
+    }
+    Ok(())
+}
+
+fn validate_scripts(scripts: &[PathBuf]) -> DynResult<()> {
+    for script in scripts {
+        if !script.is_file() {
+            return Err(format!("script not found: {}", script.display()).into());
+        }
+    }
+    Ok(())
+}
+
+/// Apply user-authored r2 commands after analysis, so renames (`afn`,
+/// `afvn`) and comments (`CC`) reach the decompiler. r2 executes scripts
+/// line by line; doing the same here keeps line numbers in failures and
+/// supports paths containing spaces without quoting them into `.`.
+fn apply_scripts(session: &mut r2pipe::R2Pipe, scripts: &[PathBuf]) -> DynResult<()> {
+    for script in scripts {
+        let source = fs::read_to_string(script)
+            .map_err(|error| format!("failed to read script {}: {error}", script.display()))?;
+        for (index, line) in source.lines().enumerate() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            let output = session
+                .cmd(line)
+                .map_err(|error| format!("{}:{}: {error}", script.display(), index + 1))?;
+            if output.trim_start().starts_with("ERROR:") {
+                return Err(
+                    format!("{}:{}: {}", script.display(), index + 1, output.trim()).into(),
+                );
+            }
+        }
+    }
+    Ok(())
 }
 
 fn build_spawn_args(loader_hints: &LoaderHints) -> Vec<String> {
@@ -246,5 +301,42 @@ mod tests {
         assert!(args.windows(2).any(|pair| pair == ["-a", "arm"]));
         assert!(args.windows(2).any(|pair| pair == ["-b", "16"]));
         assert!(args.windows(2).any(|pair| pair == ["-m", "0x08000000"]));
+    }
+
+    #[test]
+    fn rejects_missing_decompile_script() {
+        let missing = std::env::temp_dir().join(format!(
+            "fat-missing-decompile-script-{}.r2",
+            std::process::id()
+        ));
+        let error = validate_scripts(&[missing]).unwrap_err().to_string();
+        assert!(error.contains("script not found"), "{error}");
+    }
+
+    #[test]
+    fn rejects_r2ghidra_install_hint_as_pseudocode() {
+        let error = ensure_pseudocode(
+            0x4200_abd0,
+            "You need to install the plugin with r2pm -ci r2ghidra\n",
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("could not decompile"), "{error}");
+        assert!(ensure_pseudocode(0x4200_abd0, "undefined4 alarm_update(void) {}").is_ok());
+    }
+
+    #[test]
+    fn accepts_existing_decompile_script() {
+        let path = std::env::temp_dir().join(format!(
+            "fat-existing-decompile-script-{}.r2",
+            std::process::id()
+        ));
+        fs::write(
+            &path,
+            "# rename policy entry\nafn alarm_update @ 0x4200abd0\n",
+        )
+        .unwrap();
+        validate_scripts(std::slice::from_ref(&path)).unwrap();
+        fs::remove_file(&path).unwrap();
     }
 }

@@ -54,3 +54,4 @@ venv/
 CLAUDE.local.md
 .claude/*
 !.claude/settings.json
+/fat-decompile-output

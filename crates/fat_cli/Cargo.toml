@@ -15,6 +15,20 @@ publish = false
 [package.metadata.dist]
 dist = true
 
+# `cargo binstall` support: fetch the cargo-dist archive for the requested
+# version and target instead of compiling the dependency tree. The archive name
+# and layout are defined by dist-workspace.toml; the executable sits inside a
+# `firmware-analysis-toolkit-<target>/` directory next to its `share/fat` data.
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ target }.tar.gz"
+bin-dir = "{ name }-{ target }/{ bin }{ binary-ext }"
+pkg-fmt = "tgz"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ target }.zip"
+bin-dir = "{ name }-{ target }/{ bin }{ binary-ext }"
+pkg-fmt = "zip"
+
 # Only the CLI owns the product tag and non-Cargo version fields.
 [package.metadata.release]
 tag = true
@@ -24,6 +38,8 @@ pre-release-replacements = [
     { file = "../../share/fat/manifest.json", search = '"compatible_fat": "[^"]+"', replace = '"compatible_fat": "={{version}}"', exactly = 1, prerelease = true },
     { file = "../../CITATION.cff", search = '(?m)^version: "[^"]+"$', replace = 'version: "{{version}}"', exactly = 1, prerelease = true },
     { file = "../../README.md", search = 'git clone --branch v[^ ]+ --depth 1', replace = 'git clone --branch v{{version}} --depth 1', exactly = 1 },
+    { file = "../../README.md", search = 'cargo install --git https://github\.com/attify/firmware-analysis-toolkit --tag v[^ ]+ --locked firmware-analysis-toolkit', replace = 'cargo install --git https://github.com/attify/firmware-analysis-toolkit --tag v{{version}} --locked firmware-analysis-toolkit', exactly = 1 },
+    { file = "../../INSTALL.md", search = 'cargo install --git https://github\.com/attify/firmware-analysis-toolkit --tag v[^ ]+ --locked firmware-analysis-toolkit', replace = 'cargo install --git https://github.com/attify/firmware-analysis-toolkit --tag v{{version}} --locked firmware-analysis-toolkit', exactly = 1 },
 ]
 
 [dependencies]
@@ -48,6 +64,7 @@ toml = "0.8"
 sha2 = "0.10"
 tempfile = "3"
 walkdir = "2"
+wait-timeout = "0.2"
 lzma-rs = "0.3"
 xz2 = "0.1"
 owo-colors = "4"
@@ -78,6 +95,10 @@ path = "../../tests/integration/test_kernel_profile_consistency.rs"
 [[test]]
 name = "test_cli_bootstrap"
 path = "../../tests/integration/test_cli_bootstrap.rs"
+
+[[test]]
+name = "test_external_campaign_cli"
+path = "../../tests/integration/test_external_campaign_cli.rs"
 
 [[test]]
 name = "test_taint_profile_cli"

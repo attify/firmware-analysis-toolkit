@@ -810,7 +810,7 @@ enum Command {
     },
     #[command(
         name = "experiment",
-        about = "Validate and inspect rehosting experiments."
+        about = "Validate and inspect rehosting experiments and pinned external replays."
     )]
     Experiment {
         #[command(subcommand)]
@@ -1399,7 +1399,12 @@ enum Command {
     /// Examples:
     ///   fat decompile --file iCamera --function 0x440b3c
     ///   fat decompile --file STM32.bin --function 0x080002ac --arch cortex-m --base 0x08000000
-    ///   fat decompile --file iCamera --function 0x440b3c --output ./decompiled/ --json
+    ///   fat decompile --file iCamera --function 0x440b3c --script names.r2 --output ./decompiled/ --json
+    ///
+    /// `--script` applies r2 commands after analysis and before decompilation,
+    /// so `afn` (rename function), `afvn` (rename a tracked argument/local),
+    /// and `CC` (comment) change what r2ghidra prints. Pass the flag more than
+    /// once to layer scripts.
     #[command(name = "decompile")]
     Decompile {
         /// Path to an ELF binary or raw firmware blob
@@ -1417,6 +1422,12 @@ enum Command {
         /// Family hint for raw blobs (for example `STM32H7`).
         #[arg(long)]
         family: Option<String>,
+        /// r2 script of renames and comments to apply before decompiling (repeatable)
+        ///
+        /// Runs after analysis and before `pdg`. Keep the script next to the
+        /// binary so names stay reviewable and reproducible.
+        #[arg(long, value_name = "FILE")]
+        script: Vec<PathBuf>,
         /// Output directory for the raw C pseudocode
         #[arg(long)]
         output: Option<PathBuf>,
@@ -3215,6 +3226,7 @@ fn run() -> DynResult<()> {
             arch,
             base,
             family,
+            script,
             output,
             json,
             context,
@@ -3224,6 +3236,7 @@ fn run() -> DynResult<()> {
             arch.as_deref(),
             base.as_deref(),
             family.as_deref(),
+            &script,
             output.as_deref(),
             json,
             context,

@@ -2,14 +2,17 @@
 
 FAT keeps architecture-independent profiles, schemas, and helper resources in a versioned data tree. Release bundles place it at `share/fat` beside the executable prefix. 
 
-Cargo installations use an explicit local installation:
+Cargo and `cargo binstall` installations place only the executable, so they install the data explicitly:
 
 ```bash
-fat data install --archive ./fat-data-VERSION.zip
+fat data install --release
 fat data status
 fat data verify
 fat data list
 ```
+
+`--release` fetches `fat-data-<version>.zip` and its `.sha256` from the GitHub release for the running executable, verifies the digest and every manifest entry, and activates the version.
+`--archive <path>` installs a local data directory or ZIP instead, for offline or pinned setups.
 
 `fat data status` reports which origin supplied the active tree: an explicit path, `FAT_DATA_DIR` (`environment`), executable-relative bundled `share/fat`, the managed user root, or a marked development checkout. `FAT_DATA_DIR` may point directly at an unversioned reviewed data tree. 
 
@@ -46,9 +49,9 @@ https://github.com/attify/firmware-analysis-toolkit/releases/download/vVERSION/f
 https://github.com/attify/firmware-analysis-toolkit/releases/download/vVERSION/fat-data-VERSION.zip.sha256
 ```
 
-Verify the adjacent `.sha256` file before `fat data install`. Installation preflights the ZIP and rejects oversized archives or central directories, path traversal, symlinks, duplicate or undeclared payloads, more than 1,024 entries, manifests over 1 MiB, and expanded output over 32 MiB. Streamed bytes are bounded independently of declared sizes, and no partially verified version is activated.
+`fat data install --release` verifies the adjacent `.sha256` asset before installing; when installing an archive by hand, verify it first. Installation preflights the ZIP and rejects oversized archives or central directories, path traversal, symlinks, duplicate or undeclared payloads, more than 1,024 entries, manifests over 1 MiB, and expanded output over 32 MiB. Streamed bytes are bounded independently of declared sizes, and no partially verified version is activated.
 
-Resolution order is: command-level path, `FAT_DATA_DIR`, executable-relative `../share/fat`, platform user data, then a marked development checkout.
+Resolution order is: command-level path, `FAT_DATA_DIR`, executable-relative `<exe_dir>/share/fat`, executable-relative `<exe_dir>/../share/fat`, platform user data, then a marked development checkout (debug builds only).
 Within a managed root, a verified active version takes precedence over stale direct files.
 
 Normal commands do not access the network. SHA-256 verification detects file changes but does not by itself authenticate a publisher; release signing is a separate launch gate.

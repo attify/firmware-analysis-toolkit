@@ -58,6 +58,14 @@ Presentation flags do not change analysis or JSON.
 Descriptions state concrete observations and applicability conditions directly.
 Avoid generic proof disclaimers such as "presence is not established"; use precise labels and fields to distinguish static accesses, constants, and profile matches.
 
+## Decompilation
+
+`fat_cli::decompile_cmd` owns the one-shot r2/r2ghidra run. `--script` files are
+applied after analysis and before `pdg`; they are user-authored r2 commands
+(`afn`, `afvn`, `CC`) and remain the reviewable source of truth for names.
+Report script failures with the script path and line, and do not treat
+r2ghidra's install hint as pseudocode.
+
 ## BMC inspection
 
 `fat_analyze::fit` interprets FIT metadata using the shared validated FDT reader in `firmware_formats`; `fat_core::fit` owns its serializable evidence. Image signatures, configuration signatures, and control-FDT key requirements remain distinct. A completely interpreted blob is required before emitting absence-based findings; signature metadata is not cryptographic verification or enforcement.
