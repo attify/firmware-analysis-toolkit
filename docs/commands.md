@@ -33,6 +33,32 @@ For firmware with case-distinct names, create the project on a case-sensitive vo
 
 `fat inspect bmc --file flash.mtd --details` expands the text report. Use `--json` or `--sarif` for structured output and `--fail-on-warning` to emit the report before returning a failing status for warning/error findings. Both `--env-offset` and `--env-size` are required for an explicit environment region. See [BMC inspection](bmc-inspection.md) for search bounds and the distinction between signature metadata and boot enforcement.
 
+### ESP-IDF partition tables
+
+`identify` and `inspect headers` discover plaintext ESP-IDF partition tables in
+flash dumps, merged images, and standalone table binaries. No ESP-IDF installation
+or Python script is needed:
+
+```bash
+fat identify firmware.bin
+fat inspect headers --file firmware.bin
+fat inspect headers --file firmware.bin --json
+fat inspect layout --file firmware.bin
+```
+
+The scan finds tables at arbitrary file offsets, validates entry framing,
+alignment, ranges, unique labels, non-overlap and MD5 when present, and accepts
+legacy tables without MD5. Reports retain numeric types, subtypes and all flag
+bits, including unrecognized values. JSON includes rejected-candidate diagnostics.
+`inspect layout` locates the table bytes themselves.
+
+**Partition offsets are flash addresses.** They are not automatically offsets in
+the input file: a cropped dump or standalone table may have a different origin.
+FAT does not infer the flash base, claim that referenced payloads are present, or
+decode NVS values. Encrypted tables need decrypted input; application-only images
+may contain no table. The format follows [Espressif's partition-table
+documentation](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-guides/partition-tables.html).
+
 ## Filesystem evidence
 
 | Command | Purpose |

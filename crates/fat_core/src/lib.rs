@@ -11,6 +11,7 @@ pub mod decompile;
 pub mod diagnostics;
 pub mod diff;
 pub mod discovery;
+pub mod esp_partition;
 pub mod experiment;
 pub mod experiment_selector;
 pub mod external_campaign;

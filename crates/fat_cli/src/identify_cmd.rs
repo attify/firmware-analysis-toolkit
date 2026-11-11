@@ -47,6 +47,7 @@ pub struct StructureSummary {
     pub image_headers: Vec<ObjectHit>,
     pub compression_members: Vec<ObjectHit>,
     pub filesystem_headers: Vec<ObjectHit>,
+    pub esp_partitions: fat_core::esp_partition::EspPartitionScan,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub partitioning: Option<PartitioningSummary>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -292,11 +293,12 @@ fn collect_raw_blob_report(path: &Path, path_kind: String) -> DynResult<Identify
     let bytes = fs::read(path)?;
     let snapshot = analyze_firmware_bytes(&bytes)?;
     let layout = build_layout_report_with_bytes(&snapshot, &bytes)?;
-    let structure = summarize_structure(
+    let mut structure = summarize_structure(
         &layout,
         &snapshot.container_headers,
         &snapshot.filesystem_headers,
     );
+    structure.esp_partitions = snapshot.esp_partitions.clone();
     if snapshot
         .container_headers
         .iter()
@@ -327,18 +329,27 @@ fn collect_raw_blob_report(path: &Path, path_kind: String) -> DynResult<Identify
         None
     };
     let mcu = mcu_report.as_ref().and_then(summarize_mcu);
-    let likely_class = synthesize_likely_class(
+    let mut likely_class = synthesize_likely_class(
         &envelope.classification,
         &layout,
         &snapshot.container_headers,
         mcu.as_ref(),
     );
-    let confidence = synthesize_confidence(
+    let mut confidence = synthesize_confidence(
         &envelope.classification,
         &layout,
         &snapshot.container_headers,
         mcu.as_ref(),
     );
+    if !snapshot.esp_partitions.tables.is_empty()
+        && matches!(
+            likely_class.as_str(),
+            "unknown" | "raw-firmware-blob" | "opaque-wrapper-likely"
+        )
+    {
+        likely_class = "esp-idf-partitioned-image".to_string();
+        confidence = "high".to_string();
+    }
     let envelope_label = synthesize_identify_envelope_label(&envelope, &layout);
     let mut summary = synthesize_raw_blob_summary(&bytes, &layout, &snapshot.container_headers);
     summary.extend(synthesize_envelope_interpretation(&envelope, &layout));
@@ -719,6 +730,7 @@ fn summarize_structure(
         partitioning: summarize_partitioning(layout, &filesystem_objects),
         inferences: summarize_structure_inferences(layout, &filesystem_objects),
         filesystem_headers: filesystem_objects,
+        esp_partitions: Default::default(),
         dominant_boot_image: render_layout_offset(
             layout,
             layout.summary.dominant_boot_image_offset,
@@ -1488,6 +1500,7 @@ fn render_report(report: &IdentifyReport, input: &Path, details: bool) {
     }
 
     if let Some(structure) = report.structure.as_ref() {
+        crate::esp_partition_report::append_tables(&mut view, &structure.esp_partitions.tables);
         let rows = structure
             .regions
             .iter()

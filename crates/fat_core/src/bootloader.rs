@@ -29,6 +29,8 @@ pub struct BootloaderSnapshot {
     pub embedded_signatures: Vec<EmbeddedSignature>,
     #[serde(default)]
     pub fit: crate::fit::FitScanReport,
+    #[serde(default)]
+    pub esp_partitions: crate::esp_partition::EspPartitionScan,
     pub findings: Vec<String>,
 }
 

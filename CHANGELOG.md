@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+
+- Native ESP-IDF partition-table discovery in `identify`, `inspect headers`, and
+  `inspect layout`, including custom table locations, optional MD5 validation,
+  legacy tables, and separate file offsets and flash addresses.
+
 ## [2.1.0]
 
 See the [release notes](release-notes/v2.1.0.md) for installation and upgrade instructions.

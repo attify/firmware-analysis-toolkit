@@ -2634,7 +2634,9 @@ const INSPECT_HEADERS_AFTER: &str = r#"Syntax:
   fat inspect headers [<project-dir>] [--file <path>] [--json]
 
 What it does:
-  Inspects known firmware container headers from a project or standalone file.
+  Inspects known firmware container headers and ESP-IDF partition tables from a
+  project or standalone file. ESP-IDF tables are discovered without assuming a
+  fixed location; partition flash addresses are distinct from input-file offsets.
   When the input is an ELF binary or shared object, it falls back to ELF header
   metadata instead of firmware-container parsing.
 "#;

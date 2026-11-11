@@ -73,6 +73,7 @@ pub fn analyze_firmware_bytes(bytes: &[u8]) -> std::io::Result<BootloaderSnapsho
     let mut snapshot = BootloaderSnapshot {
         container_headers: parse_container_headers(bytes, native_formats.container_headers),
         fit,
+        esp_partitions: crate::esp_partition::scan(bytes),
         ..Default::default()
     };
     if snapshot
@@ -139,6 +140,32 @@ fn build_layout_report_internal(
         .map(|(offset, _)| offset);
 
     let mut regions = Vec::new();
+
+    for table in &snapshot.esp_partitions.tables {
+        regions.push(LayoutRegion {
+            offset: table.file_offset,
+            kind: LayoutRegionKind::PartitionTable,
+            format: "esp-idf-partition-table".into(),
+            size: Some(table.size),
+            uncompressed_size: None,
+            end_offset: table.file_offset.checked_add(table.size),
+            span_is_exact: true,
+            fills_to_eof: false,
+            span_source: Some("validated table records through end marker".into()),
+            original_name: None,
+            architecture: None,
+            kernel_format: None,
+            role: LayoutRegionRole::UnknownRole,
+            partition: None,
+            scope: LayoutRegionScope::TopLevel,
+            depth: 0,
+            parent_offset: None,
+            notes: vec![format!(
+                "{} partitions; flash base is unresolved",
+                table.partitions.len()
+            )],
+        });
+    }
 
     for header in &snapshot.container_headers {
         let size = container_region_size(header);
@@ -288,12 +315,28 @@ pub fn merge_snapshots(
     base.fit.blobs.extend(overlay.fit.blobs);
     base.fit.control_keys.extend(overlay.fit.control_keys);
     base.fit.diagnostics.extend(overlay.fit.diagnostics);
+    base.esp_partitions
+        .tables
+        .extend(overlay.esp_partitions.tables);
+    base.esp_partitions
+        .diagnostics
+        .extend(overlay.esp_partitions.diagnostics);
     base.findings.extend(overlay.findings);
 
     finalize_snapshot(base)
 }
 
 fn finalize_snapshot(mut snapshot: BootloaderSnapshot) -> BootloaderSnapshot {
+    snapshot
+        .esp_partitions
+        .tables
+        .sort_by_key(|table| table.file_offset);
+    snapshot.esp_partitions.tables.dedup();
+    snapshot
+        .esp_partitions
+        .diagnostics
+        .sort_by_key(|diagnostic| diagnostic.file_offset);
+    snapshot.esp_partitions.diagnostics.dedup();
     snapshot.fit.blobs.sort_by_key(|blob| blob.offset);
     snapshot.fit.blobs.dedup();
     snapshot.fit.control_keys.sort_by_key(|key| key.offset);

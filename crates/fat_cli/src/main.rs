@@ -64,6 +64,7 @@ mod emulate_config;
 mod emulate_gc;
 mod emulate_list;
 mod envelope_cmd;
+mod esp_partition_report;
 mod experiment_cmd;
 mod extract_payload_cmd;
 mod fat_graph_cmd;

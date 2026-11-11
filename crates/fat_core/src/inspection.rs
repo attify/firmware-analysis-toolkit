@@ -14,6 +14,8 @@ pub struct InspectionReport {
     pub filesystem_headers: Vec<FilesystemHeader>,
     #[serde(default)]
     pub fit: crate::fit::FitScanReport,
+    #[serde(default)]
+    pub esp_partitions: crate::esp_partition::EspPartitionScan,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
