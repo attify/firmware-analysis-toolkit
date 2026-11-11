@@ -95,6 +95,8 @@ pub fn run_headers(
         && report.container_headers.is_empty()
         && report.compression_members.is_empty()
         && report.filesystem_headers.is_empty()
+        && report.esp_partitions.tables.is_empty()
+        && report.esp_partitions.diagnostics.is_empty()
     {
         return Err("no image headers found for the selected input source".into());
     }
@@ -102,11 +104,20 @@ pub fn run_headers(
     if json {
         println!("{}", serde_json::to_string_pretty(&report)?);
     } else {
-        let report = render_report(&report);
+        let rendered = render_report(&report);
         print!(
             "{}",
-            crate::style::render_doc(&report, &crate::style::Palette::stdout())
+            crate::style::render_doc(&rendered, &crate::style::Palette::stdout())
         );
+        // Keep the shared width-aware partition presentation out of render_doc's
+        // legacy whitespace renderer.
+        if !report.esp_partitions.tables.is_empty() {
+            let mut view = crate::report::Report::new("ESP-IDF partition tables");
+            crate::esp_partition_report::append_tables(&mut view, &report.esp_partitions.tables);
+            println!("{}", view.finish());
+        } else if rendered.trim().is_empty() && !report.esp_partitions.diagnostics.is_empty() {
+            println!("No valid ESP-IDF partition table; rejected candidate details are available with --json.");
+        }
     }
     Ok(())
 }
@@ -530,6 +541,7 @@ fn load_project_report(project_dir: &Path) -> DynResult<InspectionReport> {
             compression_members: snapshot.compression_members,
             filesystem_headers: snapshot.filesystem_headers,
             fit: snapshot.fit,
+            esp_partitions: snapshot.esp_partitions,
         });
     }
 
@@ -541,6 +553,7 @@ fn load_project_report(project_dir: &Path) -> DynResult<InspectionReport> {
         compression_members: Vec::new(),
         filesystem_headers: Vec::new(),
         fit: Default::default(),
+        esp_partitions: Default::default(),
     })
 }
 
@@ -559,6 +572,7 @@ fn load_file_report(firmware_path: &Path) -> DynResult<InspectionReport> {
         compression_members: snapshot.compression_members,
         filesystem_headers: snapshot.filesystem_headers,
         fit: snapshot.fit,
+        esp_partitions: snapshot.esp_partitions,
     })
 }
 

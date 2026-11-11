@@ -74,6 +74,8 @@ pub struct LayoutRegionPartition {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LayoutRegionKind {
+    #[serde(rename = "partition-table")]
+    PartitionTable,
     #[serde(rename = "container")]
     Container,
     #[serde(rename = "boot-image")]
@@ -89,6 +91,7 @@ pub enum LayoutRegionKind {
 impl LayoutRegionKind {
     pub fn as_str(self) -> &'static str {
         match self {
+            LayoutRegionKind::PartitionTable => "partition-table",
             LayoutRegionKind::Container => "container",
             LayoutRegionKind::BootImage => "boot-image",
             LayoutRegionKind::Compression => "compression",

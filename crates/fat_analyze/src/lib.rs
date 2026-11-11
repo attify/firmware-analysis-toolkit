@@ -8,6 +8,7 @@ pub mod cert_diff;
 pub mod credential;
 pub mod edge_ai;
 pub mod engine;
+pub mod esp_partition;
 pub mod firmware_formats;
 pub mod fit;
 pub mod image_measurements;

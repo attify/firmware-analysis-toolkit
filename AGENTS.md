@@ -66,6 +66,15 @@ applied after analysis and before `pdg`; they are user-authored r2 commands
 Report script failures with the script path and line, and do not treat
 r2ghidra's install hint as pseudocode.
 
+## ESP-IDF partition inspection
+
+`fat_analyze::esp_partition` discovers and validates plaintext ESP-IDF partition
+tables; `fat_core::esp_partition` owns the shared evidence. `identify` and
+`inspect headers` use the same scan and terminal renderer. Table and entry file
+offsets are separate from partition flash addresses: never infer the dump's flash
+base from the default table location or manufacture payload regions from it.
+Legacy tables may lack MD5; a valid MD5 is table integrity, not authenticity.
+
 ## BMC inspection
 
 `fat_analyze::fit` interprets FIT metadata using the shared validated FDT reader in `firmware_formats`; `fat_core::fit` owns its serializable evidence. Image signatures, configuration signatures, and control-FDT key requirements remain distinct. A completely interpreted blob is required before emitting absence-based findings; signature metadata is not cryptographic verification or enforcement.
