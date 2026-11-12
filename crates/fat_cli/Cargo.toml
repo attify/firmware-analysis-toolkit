@@ -66,7 +66,7 @@ wait-timeout = "0.2"
 lzma-rs = "0.3"
 xz2 = "0.1"
 owo-colors = "4"
-zip = "2"
+zip = "9.0.5"
 tar = "0.4"
 indicatif = { version = "0.17", default-features = false }
 libc = "0.2"
@@ -80,7 +80,7 @@ serde_yaml = "0.9"
 fat_query = { version = "=2.1.0", path = "../fat_query", package = "fat-toolkit-query", features = ["test-fixtures"] }
 flate2 = "1"
 tempfile = "3"
-zip = "2"
+zip = "9.0.5"
 
 [[bin]]
 name = "fat"

@@ -529,18 +529,22 @@ fn extract_zip(archive: &Path, destination: &Path) -> DynResult<()> {
     let mut expanded_bytes = 0_u64;
     for index in 0..zip.len() {
         let entry = zip.by_index(index)?;
+        let entry_name = entry
+            .name()
+            .map_err(|error| format!("invalid archive entry name: {error}"))?
+            .into_owned();
         let relative = entry
             .enclosed_name()
-            .ok_or_else(|| format!("unsafe archive path: {}", entry.name()))?
+            .ok_or_else(|| format!("unsafe archive path: {entry_name}"))?
             .to_path_buf();
         if !seen.insert(relative.clone()) {
-            return Err(format!("duplicate archive path: {}", entry.name()).into());
+            return Err(format!("duplicate archive path: {entry_name}").into());
         }
         if entry
             .unix_mode()
             .is_some_and(|mode| mode & 0o170000 == 0o120000)
         {
-            return Err(format!("unsafe archive symlink: {}", entry.name()).into());
+            return Err(format!("unsafe archive symlink: {entry_name}").into());
         }
         if !entry.is_dir() {
             expanded_bytes = expanded_bytes

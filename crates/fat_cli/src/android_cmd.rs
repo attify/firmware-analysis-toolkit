@@ -1154,7 +1154,10 @@ fn looks_like_embedded_apk_bundle(path: &std::path::Path) -> DynResult<bool> {
                 e
             )
         })?;
-        let name = entry.name();
+        let name = match entry.name() {
+            Ok(name) => name,
+            Err(_) => return Ok(false),
+        };
         if name == "AndroidManifest.xml" {
             has_manifest = true;
         }

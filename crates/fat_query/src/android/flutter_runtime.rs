@@ -73,7 +73,17 @@ pub fn derive_flutter_runtime_semantics(
                     e
                 )
             })?;
-            let entry_name = entry.name().to_string();
+            let entry_name = entry
+                .name()
+                .map_err(|e| {
+                    format!(
+                        "failed to decode zip entry name {} from {}: {}",
+                        index,
+                        apk.display(),
+                        e
+                    )
+                })?
+                .to_string();
             retained_entry_name_bytes = retained_entry_name_bytes
                 .checked_add(entry_name.len())
                 .ok_or_else(|| "APK retained entry-name byte count overflowed".to_string())?;

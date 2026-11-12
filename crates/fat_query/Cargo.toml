@@ -33,7 +33,7 @@ shell-words = "1"
 sha2 = "0.10"
 walkdir = "2"
 tempfile = "3"
-zip = "2"
+zip = "9.0.5"
 
 [dev-dependencies]
 

@@ -847,7 +847,17 @@ fn inspect_apk(
                 e
             )
         })?;
-        let name = entry.name().to_string();
+        let name = entry
+            .name()
+            .map_err(|e| {
+                format!(
+                    "failed to decode zip entry name {} in {}: {}",
+                    index,
+                    path.display(),
+                    e
+                )
+            })?
+            .to_string();
         *retained_entry_name_bytes = retained_entry_name_bytes
             .checked_add(name.len())
             .ok_or_else(|| "APK retained entry-name byte count overflowed".to_string())?;
